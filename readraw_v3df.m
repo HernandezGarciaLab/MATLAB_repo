@@ -41,7 +41,7 @@ function [raw,info] = readraw_v3df(searchstr)
     % Open pfile
     [pfile,msg_fopen] = fopen(pfile_name,'r','ieee-le');
     if ~isempty(msg_fopen), error(msg_fopen); end
-    if fseek(pfile, ge_hdr.rdb.off_data, 'bof'), error('BOF not found\n'); end
+    if fseek(pfile, h.rdb.off_data, 'bof'), error('BOF not found\n'); end
 
     % Read in data
     raw = zeros(info.nframes,info.ndat,info.nleaves,info.nslices,info.ncoils);

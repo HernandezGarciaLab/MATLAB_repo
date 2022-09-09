@@ -29,10 +29,6 @@ function [t,im,psf] = recon_v3df(varargin)
     % Get raw data and info
     if (isempty(args.raw) || isempty(args.info)) % If reading from Pfile
         [raw,info] = readraw_v3df(args.pfile);
-        if (isnan(raw) || isnan(info)) % Exit when no Pfiles are found
-            t = NaN(1); im = NaN(1); psf = NaN(1);
-            return;
-        end
     else % If raw/scaninfo is user specified
         raw = args.raw;
         info = args.info;
