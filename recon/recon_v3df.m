@@ -1,4 +1,5 @@
 function [t,im,psf] = recon_v3df(varargin)
+    
     % Define default arguments
     defaults = struct(...
         'raw',          [], ... % Raw data
@@ -18,14 +19,7 @@ function [t,im,psf] = recon_v3df(varargin)
     
 %% Set up recon
     % Parse through variable inputs using matlab's built-in input parser
-    p = inputParser;    
-    parmnames = fieldnames(defaults);
-    for i = 1:size(parmnames,1)
-        parmname = char(parmnames{i});
-        p.addParameter(parmname,defaults.(parmname),@(x)1);
-    end
-    p.parse(varargin{:});
-    args = p.Results;
+    args = vararginparser(defaults,varargin{:});
     
     % Get raw data and info
     if (isempty(args.raw) || isempty(args.info)) % If reading from Pfile
@@ -177,7 +171,7 @@ function [t,im,psf] = recon_v3df(varargin)
     t = toc(t);
     fprintf('\nRecon complete. Total elapsed time: %.2fs\n',t);
     
-return;
+end
 
 %% phasedetrend function definition
 function raw_corr = phasedetrend(raw,navpts,pdorder)
@@ -214,7 +208,7 @@ function raw_corr = phasedetrend(raw,navpts,pdorder)
     % Correct echo by subtracting out fits from phase
     raw_corr = raw.*exp(-1i*fits);
 
-return;
+end
 
 %% pipedcf function definition
 function Wi = pipedcf(G,itrmax)
@@ -241,4 +235,4 @@ function Wi = pipedcf(G,itrmax)
         
     end
     
-return;
+end

@@ -14,9 +14,7 @@ function [raw,info] = readraw_v3df(searchstr)
         end
         fprintf('\n--> Only continuing with first Pfile...');
     elseif size(dirp,1) < 1
-        fprintf('\nNo Pfiles found for search string %s:',searchstr);
-        raw = NaN(1); info = NaN(1);
-        return;
+        error('No Pfiles found for search string %s:',searchstr);
     end
     pfile_name = dirp(1).name;
     fprintf('\nReading Pfile: %s', pfile_name);
@@ -64,4 +62,4 @@ function [raw,info] = readraw_v3df(searchstr)
     % Close pfile
     fclose(pfile);
 
-return;
+end
