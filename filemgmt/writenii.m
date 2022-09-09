@@ -20,7 +20,7 @@ function writenii(niifile_name,im,dim,fov,tr,doscl)
     end
     
     % Define header
-    h = hdr();
+    h = niihdr();
         h.dim = [4, dim, size(im,4), 0, 0, 0];
         h.pixdim = [4, fov./dim, tr, 0, 0, 0];
         h.datatype = 4;
@@ -90,7 +90,7 @@ function writenii(niifile_name,im,dim,fov,tr,doscl)
 
 end
 
-function h = hdr()
+function h = niihdr()
 
     h = struct (...
         'sizeof_hdr'    , 348, ...

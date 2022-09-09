@@ -84,7 +84,7 @@ function [t,im,psf] = recon_v3df(varargin)
     end
     
     % Correct for gradient sample delay
-    if abs(ndel) > 0
+    if abs(args.ndel) > 0
         raw = circshift(raw,args.ndel,2);
     end
     
