@@ -1,6 +1,8 @@
-function [t,im,psf] = rv3df(varargin)
+function [t,im,psf] = recon_v3df(varargin)
     % Define default arguments
     defaults = struct(...
+        'raw',          [], ... % Raw data
+        'info',         [], ... % Info structure
         'pfile',        'P*.7', ... % Search string for Pfile
         'tol',          1e-5, ... % Kspace distance tolerance
         'itrmax',       15, ... % Max number of iterations for IR
@@ -24,8 +26,17 @@ function [t,im,psf] = rv3df(varargin)
     p.parse(varargin{:});
     args = p.Results;
     
-    % Get raw data and info from pfile
-    [raw,info] = readpfile(args.pfile);
+    % Get raw data and info
+    if (isempty(args.raw) || isempty(args.info)) % If reading from Pfile
+        [raw,info] = readraw_v3df(args.pfile);
+        if (isnan(raw) || isnan(info)) % Exit when no Pfiles are found
+            t = NaN(1); im = NaN(1); psf = NaN(1);
+            return;
+        end
+    else % If raw/scaninfo is user specified
+        raw = args.raw;
+        info = args.info;
+    end
     
     % Determine frames to recon 
     if strcmpi(args.frames,'all')
@@ -131,7 +142,8 @@ function [t,im,psf] = rv3df(varargin)
         fprintf(msg_fprog);
         
         % Loop through coils
-        parfor coiln = 1:info.ncoils
+        parfor (coiln = 1:info.ncoils, args.nworkers)
+            % Recon using adjoint NUFFT operation
             data = reshape(raw(framen,:,:,:,coiln),[],1);
             im(:,:,:,coiln,framen) = reshape(G' * (dcf.*data), dim);
         end
@@ -163,71 +175,7 @@ function [t,im,psf] = rv3df(varargin)
     t = toc(t);
     fprintf('\nRecon complete. Total elapsed time: %.2fs\n',t);
     
-end
-
-%% readpfile function definition
-function [raw,info] = readpfile(search)
-    
-    % Get first Pfile with search string from directory
-    ps = dir(search);
-    pfile_name = ps(1).name;
-    fprintf('\nReading Pfile: %s', pfile_name);
-    ge_hdr = ge_pfilehdr(pfile_name); % GE Pfile header structure
-
-    info = struct(...
-        'ndat',     ge_hdr.rdb.da_xres, ... % Number of points / echo
-        'nleaves',  ge_hdr.image.user0, ... % Number of interleaves
-        'nframes',  ge_hdr.image.user1, ... % Number of temporal frames
-        'nslices',  ge_hdr.image.slquant, ... % Number of slices
-        'ncoils',   ge_hdr.rdb.dab(2) - ge_hdr.rdb.dab(1) + 1, ... % Number of coils
-        'tr',       ge_hdr.image.tr, ... % TR (usec)
-        'te',       ge_hdr.image.te, ... % TE (usec)
-        'xydim',    ge_hdr.image.dim_X, ... % Image x/y dimension
-        'xyfov',    ge_hdr.image.dfov/10, ... % FOV (cm)
-        'slthick',  ge_hdr.image.slthick/10 ... % Slice Thickness (cm)
-        );
-    
-    % Print info structure
-    infonames = fieldnames(info);
-    for i = 1:size(infonames,1)
-        name = char(infonames{i});
-        val = info.(name);
-        if ischar(val)
-            fprintf('\n\t%s: %s', name, val);
-        elseif round(val) == val
-            fprintf('\n\t%s: %d', name, val);
-        else
-            fprintf('\n\t%s: %.2f', name, val);
-        end
-    end
-    
-    % Open pfile
-    [pfile,msg_fopen] = fopen(pfile_name,'r','ieee-le');
-    if ~isempty(msg_fopen), error(msg_fopen); end
-    if fseek(pfile, ge_hdr.rdb.off_data, 'bof'), error('BOF not found\n'); end
-
-    % Read in data
-    raw = zeros(info.nframes,info.ndat,info.nleaves,info.nslices,info.ncoils);
-    for coiln = 1:info.ncoils
-        for slicen = 1:info.nslices
-            % Read in baseline
-            fread(pfile, 2*info.ndat, 'short');
-
-            % Read in data
-            dat = fread(pfile, [2*info.ndat info.nframes*info.nleaves], 'short');
-            dat = reshape(dat(1:2:end,:) + 1i * dat(2:2:end,:), ...
-                info.ndat, info.nleaves, info.nframes);
-
-            % Store in raw
-            raw(:,:,:,slicen,coiln) = permute(dat,[3 1 2]);
-
-        end
-    end
-    
-    % Close pfile
-    fclose(pfile);
-    
-end
+return;
 
 %% phasedetrend function definition
 function raw_corr = phasedetrend(raw,navpts,pdorder)
@@ -264,7 +212,7 @@ function raw_corr = phasedetrend(raw,navpts,pdorder)
     % Correct echo by subtracting out fits from phase
     raw_corr = raw.*exp(-1i*fits);
 
-end
+return;
 
 %% pipedcf function definition
 function Wi = pipedcf(G,itrmax)
@@ -291,7 +239,7 @@ function Wi = pipedcf(G,itrmax)
         
     end
     
-end
+return;
 
 %% im2nii function definition
 function im2nii(niifile_name,im,dim,fov,tr,doscl)
@@ -429,4 +377,4 @@ function im2nii(niifile_name,im,dim,fov,tr,doscl)
     
     fclose(niifile);
     
-end
+return;
