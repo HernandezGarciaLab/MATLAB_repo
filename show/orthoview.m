@@ -5,10 +5,10 @@ function orthoview(im,varargin)
         'fov',      [], ...
         'frame',    1, ...
         'offset',   [0,0,0], ...
-        'logscale', 'off', ...
+        'logscale', 0, ...
         'caxis',    'auto', ...
         'colormap', 'gray', ...
-        'colorbar', 'on' ...
+        'colorbar', 1 ...
         );
     
     % Parse through variable inputs using matlab's built-in input parser
@@ -27,7 +27,7 @@ function orthoview(im,varargin)
     end
     
     % Apply log scale
-    if strcmpi(args.logscale,'on')
+    if args.logscale
         im = log(im - min(im(:)) + eps());
     end
     
@@ -71,7 +71,7 @@ function orthoview(im,varargin)
     set(gca,'Ydir','normal');
     grid off
     axis off
-    if ~strcmp(args.colorbar,'off')
+    if args.colorbar
         colorbar;
     end
     colormap(args.colormap);

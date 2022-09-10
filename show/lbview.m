@@ -8,7 +8,7 @@ function lbview(im, varargin)
         'nrows',    'auto', ...
         'caxis',    'auto', ...
         'colormap', 'gray', ...
-        'colorbar', 'on' ...
+        'colorbar', 1 ...
         );
     
     % Parse through variable inputs using matlab's built-in input parser
@@ -66,7 +66,7 @@ function lbview(im, varargin)
     set(gca,'Ydir','normal');
     grid off
     axis off
-    if ~strcmp(args.colorbar,'off')
+    if args.colorbar
         colorbar;
     end
     colormap(args.colormap);
