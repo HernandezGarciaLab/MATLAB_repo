@@ -1,4 +1,4 @@
-function writenii(niifile_name,im,dim,fov,tr,doscl)
+function writenii(niifile_name,im,fov,tr,doscl)
 
     % Add .nii extension if user left it out
     if ~contains(niifile_name,'.nii')
@@ -23,6 +23,9 @@ function writenii(niifile_name,im,dim,fov,tr,doscl)
         scl_inter = 0;
         scl_slope = 0;
     end
+    
+    % Get dim
+    dim = [size(im,1),size(im,2),size(im,3)];
     
     % Define header
     h = makeniihdr(...

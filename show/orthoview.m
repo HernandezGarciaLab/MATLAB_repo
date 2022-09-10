@@ -2,7 +2,7 @@ function orthoview(im,varargin)
 
     % Define default arguments
     defaults = struct(...
-        'fov',      [1,1,1], ...
+        'fov',      [], ...
         'frame',    1, ...
         'offset',   [0,0,0], ...
         'logscale', 'off', ...
@@ -34,6 +34,12 @@ function orthoview(im,varargin)
     % Select single frame
     if size(im,4) > 1
         im = im(:,:,:,args.frame);
+    end
+    
+    % Check fov
+    if isempty(args.fov)
+        warning('FOV is not set, so assuming fov from dimensions (may produce weird images)');
+        args.fov = size(im) / max(size(im),[],'all');
     end
     
     % If dimensions are not the same size, inerpolate & extrapolate

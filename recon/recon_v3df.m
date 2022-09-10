@@ -1,4 +1,4 @@
-function [t,im,psf] = recon_v3df(varargin)
+function im = recon_v3df(varargin)
     
     % Define default arguments
     defaults = struct(...
@@ -23,7 +23,7 @@ function [t,im,psf] = recon_v3df(varargin)
     
     % Get raw data and info
     if (isempty(args.raw) || isempty(args.info)) % If reading from Pfile
-        [raw,info] = readraw_v3df(args.pfile);
+        [raw,info] = readpfile(args.pfile);
     else % If raw/scaninfo is user specified
         raw = args.raw;
         info = args.info;
@@ -150,21 +150,21 @@ function [t,im,psf] = recon_v3df(varargin)
     im = sqrt( squeeze( mean( im.^2, 4) ) );
     
     % Save results that aren't returned to nifti:
-    if nargout < 2
+    if nargout < 1
         % Save timeseries
         writenii('./timeseries.nii', abs(im), ...
-            dim, fov, info.tr, args.scaleoutput);
+            fov, info.tr, args.scaleoutput);
         fprintf('\nTimeseries saved to timeseries.nii');
-    else
-        fprintf('\nTimeseries will not be saved to file since it is returned');
-    end
-    if nargout < 3
+        
         % Save point spread function
         writenii('./psf.nii', abs(psf), ...
-            dim, fov, info.tr, args.scaleoutput);
-        fprintf('\nPSF saved to psf.nii');
+            fov, info.tr, args.scaleoutput);
+        fprintf('\nPoint spread function saved to psf.nii');
+        
+        % Clear im so it won't be returned
+        clear im;
     else
-        fprintf('\nPSF will not be saved to file since it is returned');
+        fprintf('\nImages will not be saved to file since timeseries is returned');
     end
     
     % Save and print elapsed time

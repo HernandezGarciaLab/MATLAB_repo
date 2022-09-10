@@ -61,11 +61,12 @@ function [im,h] = readnii(niifile_name)
     );
 
     % Read in data
-    im = fread(niifile, prod(h.dim(2:4)), 'short')';
+    fseek(niifile,h.vox_offset,'bof');
+    im = fread(niifile, prod(h.dim(2:5)), 'short')';
     fclose(niifile);
     
     % Reshape and rescale data
-    im = reshape(im,h.dim(2:4));
+    im = reshape(im,h.dim(2:5));
     im = h.scl_slope*im + h.scl_inter;
 
 end
