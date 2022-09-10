@@ -1,4 +1,4 @@
-function im = recon_v3df(varargin)
+function im = recon_vsasl3dflex(varargin)
     
     % Define default arguments
     defaults = struct(...
