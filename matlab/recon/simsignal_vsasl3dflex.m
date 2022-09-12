@@ -119,6 +119,6 @@ function [raw,info] = simsignal_vsasl3dflex(varargin)
     
     % Save and print elapsed time
     t = toc(t);
-    fprintf('\nRecon complete. Total elapsed time: %.2fs\n',t);
+    fprintf('\nSignal simulation complete. Total elapsed time: %.2fs\n',t);
     
 end
