@@ -5,10 +5,10 @@ function im_sub = aslsub(im,varargin)
         'fstart',       3, ... % First frame to use in subtraction
         'fend',         'auto', ... % Last frame to use in subtraction
         'order',        'auto', ... % Order of subtraction
-        'tr',           [], ... % TR (if im is not read from file)
-        'fov',          [], ... % FOV (if im is not read from file)
+        'tr',           [], ... % TR (ms) (if im is not read from file)
+        'fov',          [], ... % FOV (cm) (if im is not read from file)
         'sur',          1, ... % Use 'sur' algorithm for subtractions
-        'rel',          1, ... % Output subtraction as relative signal change to M0
+        'rel',          0, ... % Output subtraction as relative signal change to M0
         'scaleoutput',  1 ... % Option to scale output to full dynamic range
         );
     
@@ -29,7 +29,7 @@ function im_sub = aslsub(im,varargin)
     % If im is a nii file name, read in from file
     if ischar(im)
         [im,h] = readnii(im);
-        args.tr = h.pixdim(4);
+        args.tr = h.pixdim(5);
         args.fov = h.dim(2:4) .* h.pixdim(2:4);
     elseif (isempty(args.tr) || isempty(args.fov))
         error('Must specify tr and fov if image is not read from file');
