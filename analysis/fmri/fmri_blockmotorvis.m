@@ -53,8 +53,9 @@ function tscore_act = fmri_blockmotorvis(im,varargin)
     
     % Create regressors
     x_flow = ones(nframes,1); % Baseline flow
-    x_act = conv(hrf,stim); % Activation (stim convolved with hrf)
-    x_act = interp1(t_hires, x_act(1:length(t_hires)), t_lowres)';
+    x_act_hires = conv(hrf,stim); % Activation (stim convolved with hrf)
+    x_act_hires = x_act_hires(1:length(t_hires));
+    x_act = interp1(t_hires, x_act_hires, t_lowres)';
     
     % Create design matrix and known vector for lsq regression 
     A = [x_flow, x_act];
@@ -92,6 +93,22 @@ function tscore_act = fmri_blockmotorvis(im,varargin)
     else
         fprintf('\nImages will not be saved to file since sub image is returned');
     end
+    
+    % Show regressors
+    if args.show
+        cfigopen('fmri block motor vis analysis');
+        plot(t_hires,x_act_hires,'-b'), hold on
+        scatter(t_lowres,x_act,'ob'),
+        plot(t_hires,ones(length(t_hires),1),'-g'),
+        scatter(t_lowres,ones(length(t_lowres),1),'og'); hold off
+        xlabel('time (s)');
+        yticks([]);
+        title('Regressors');
+    end
+    
+    % Save and print elapsed time
+    t = toc(t);
+    fprintf('\nfmri block motor vis analysis completed. Elapsed time: %.2fs\n',t);
     
 end
 

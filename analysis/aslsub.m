@@ -4,7 +4,7 @@ function im_sub = aslsub(im,varargin)
     defaults = struct(...
         'fstart',       3, ... % First frame to use in subtraction
         'fend',         'auto', ... % Last frame to use in subtraction
-        'order',        'auto', ... % Order of subtraction
+        'order',        0, ... % Order of subtraction
         'tr',           [], ... % TR (ms) (if im is not read from file)
         'fov',          [], ... % FOV (cm) (if im is not read from file)
         'sur',          1, ... % Use 'sur' algorithm for subtractions
@@ -38,13 +38,6 @@ function im_sub = aslsub(im,varargin)
     % Auto-determine last frame for subtraction
     if strcmpi(args.fend,'auto')
         args.fend = size(im,4);
-    end
-    
-    % Auto-determine order for subtraction
-    if strcmpi(args.order,'auto')
-        args.order = 1 * ...
-            (mean(im(:,:,:,args.fstart:2:args.fend),'all') > ...
-            mean(im(:,:,:,args.fstart+1:2:args.fend),'all'));
     end
        
     % Seperate control and label frames
