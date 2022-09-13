@@ -90,15 +90,20 @@ function [raw,info] = simsignal_vsasl3dflex(varargin)
             linspace(-max(args.fov)/2, max(args.fov)/2, max(args.dim)));
         interp_phantom = griddedInterpolant(X0,Y0,Z0,args.phantom);
         args.phantom = interp_phantom(X,Y,Z);
+        clear X0 Y0 Z0
     elseif ~isequal(size(args.phantom),args.dim)
         error('Phantom size must match size of image in Pfile: %dx%dx%d', ...
             args.dim(1), args.dim(2), args.dim(3));
     end
     
     % Initialize raw and progress message
-    raw = zeros(1,info.ndat,info.nleaves,info.nslices,1);
+    raw = complex(zeros(1,info.ndat,info.nleaves,info.nslices,1));
     fprintf('\nSimulating signal... ');
     msg_simprog = '';
+    
+    % Make r
+    r = [X(:),Y(:),Z(:)];
+    clear X Y Z
     
     % Loop through views
     for leafn = 1:info.nleaves
@@ -113,7 +118,7 @@ function [raw,info] = simsignal_vsasl3dflex(varargin)
             
             % Use signal eq. to simulate signal
             ks_view = ks(:,:,leafn,slicen);
-            raw(1,:,leafn,slicen,1) = exp(-1i * 2 * pi * ks_view * [X(:),Y(:),Z(:)]') * args.phantom(:);
+            raw(1,:,leafn,slicen,1) = exp(-1i * 2 * pi * ks_view * r') * args.phantom(:);
         end
     end
     

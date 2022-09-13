@@ -57,6 +57,7 @@ function im = recon_vsasl3dflex(varargin)
     navpts(navpts > info.ndat*3/4) = []; % reject navpts in first 1/4
     navpts(navpts < info.ndat*1/4) = []; % reject navpts in last 1/4
     [~,nramp] = max(vecnorm(ks_0(1:round(info.ndat/2),:),2,2));
+    nramp = nramp + 2; % add a small sample buffer
     
     % Transform trajectory to entire trajectory
     ks = zeros(info.ndat, 3, info.nleaves, info.nslices);
