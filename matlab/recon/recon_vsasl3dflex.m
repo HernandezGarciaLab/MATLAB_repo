@@ -1,5 +1,111 @@
 function im = recon_vsasl3dflex(varargin)
-    
+% function im = recon_vsasl3dflex(varargin)
+%
+% Part of umasl project by Luis Hernandez-Garcia and David Frey
+% @ University of Michigan 2022
+%
+% Description: Function to reconstruct images from vsasl3dflex ASL
+%   sequence using 3D NUFFT with Pipe & Menon Density compensation
+%
+%
+% Notes:
+%   - if output is returned, nii files will not be saved to conserve space
+%       and prevent overwriting, and vice verse for when output is not
+%       returned (see 'im' under 'Function output')
+%   - default values in help message may not be up to date - check defaults
+%       structure under the function header
+%
+% Path dependencies:
+%   - matlab default path
+%       - can be restored by typing 'restoredefaultpath'
+%   - umasl
+%       - github: fmrifrey/umasl
+%       - umasl/matlab/ and subdirectories must be in current path
+%   - mirt (matlab version)
+%       - github: JeffFessler/mirt
+%       - mirt setup must have successfully ran
+%
+% Variable input arguments (type 'help varargin' for usage info):
+%   - 'raw':
+%       - raw data structure
+%       - complex double/float array of dimensions (nframes x ndat x
+%           nleaves x nslices x ncoils)
+%       - if either raw or info is left empty, function will read data from
+%           the Pfile instead (see 'pfile' or type 'help readpfile' for
+%           more information)
+%       - default is empty (reads raw data from file)
+%   - 'info'
+%       - pfile information structure
+%       - structure containing fields: ndat, nleaves, nframes, nslices,
+%           ncoils, tr, te, dim, fov, slthick
+%       - type 'help readpfile' for more information on info structure
+%           format and field data types
+%       - if either raw or info is left empty, function will read data from
+%           the Pfile instead (see 'pfile' or type 'help readpfile' for
+%           more information)
+%       - default is empty (reads info from file)
+%   - 'pfile'
+%       - search string for pfile
+%       - string containing search path for desired pfile
+%       - will only be used if either 'raw' or 'info' is left blank
+%       - type 'help readpfile' for more information
+%       - default is 'P*.7' (uses first pfile from directory to read in
+%           raw data and info)
+%   - 'tol'
+%       - kspace distance roundoff tolerance
+%       - double/float
+%       - corrects issues in generating ktraj_cart.txt float values
+%       - default is 1e-5
+%   - 'itrmax'
+%       - maximum number of iterations for iterative operations
+%       - integer describing number of iterations
+%       - used in iterative psf recon to optimize density compensation
+%           (Pipe & Menon method)
+%       - default is 15 (optimal value described by Pipe & Menon)
+%   - 'frames'
+%       - frames in timeseries to recon
+%       - integer array containing specific frames to recon
+%       - if 'all' is passed, all frames will be reconned
+%       - default is 'all'
+%   - 'ndel'
+%       - gradient sample delay compensation
+%       - integer describing number of samples to shift signal by in each
+%           echo
+%       - default is 0
+%   - 'nramp'
+%       - number of ramp points in spiral to delete from data
+%       - integer describing number of points in ramp
+%       - if 'auto' is passed, ramp points will be determined based on
+%           trajectory envelope
+%       - make sure nramp > ndel to clip out misplaced data
+%       - default is 'auto'
+%   - 'pdorder'
+%       - order of least squares polynomial fit for phase drift
+%           compensation
+%       - integer describing highest order of polynomial for lsq fit
+%       - if -1 is passed, no phase detrending will be done
+%       - default is -1
+%   - 'nworkers'
+%       - number of workers to use in parallel pool
+%       - integer describing number of workers
+%       - default is output of feature('numcores') (number of available
+%           cores)
+%   - 'scaleoutput'
+%       - option to scale nii files to full dynamic range
+%       - boolean integer (0 or 1) to use or not
+%       - type 'help writenii' for more information
+%       - default is 1
+%
+% Function output:
+%   - im:
+%       - output timeseries image
+%       - complex array of image dimension
+%       - if im is not returned, timeseries image and psf will be saved to
+%           nii files
+%       - if im is returned, timeseries image and psf will not be saved to
+%           nii files
+%
+
     % Define default arguments
     defaults = struct(...
         'raw',          [], ... % Raw data
@@ -50,9 +156,6 @@ function im = recon_vsasl3dflex(varargin)
     end
     
 %% Process Trajectory
-    % Determine trajectory type from kviews
-    isSOS = (all(kviews(:,4)==0) && all(kviews(:,5)==0));
-    
     % Determine nramp and navpoints from 1st platter envelope
     navpts = find(vecnorm(ks_0,2,2) < args.tol);
     navpts(navpts > info.ndat*3/4) = []; % reject navpts in first 1/4

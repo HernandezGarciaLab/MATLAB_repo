@@ -1,4 +1,57 @@
 function [raw,info] = simsignal_vsasl3dflex(varargin)
+% [raw,info] = simsignal_vsasl3dflex(varargin)
+%
+% Part of umasl project by Luis Hernandez-Garcia and David Frey
+% @ University of Michigan 2022
+%
+% Description: Function to simulate a raw signal based on trajectory and
+%   phantom image
+%
+%
+% Notes:
+%   - default values in help message may not be up to date - check defaults
+%       structure under the function header
+%
+% Dependencies:
+%   - matlab default path
+%       - can be restored by typing 'restoredefaultpath'
+%   - umasl
+%       - github: fmrifrey/umasl
+%       - umasl/matlab/ and subdirectories must be in current path
+%
+% Variable input arguments (type 'help varargin' for usage info):
+%   - 'phantom':
+%       - [variableinput1 description]
+%       - [variableinput1 notes]
+%       - [variableinput1 example (if applicable)]
+%       - [variableinput1 default]
+%   - '[variableinput2 fieldname]':
+%       - [variableinput2 description]
+%       - [variableinput2 notes]
+%       - [variableinput2 example (if applicable)]
+%       - [variableinput2 default]
+%   ...
+%   - '[variableinputN fieldname]':
+%       - [variableinputN description]
+%       - [variableinputN notes]
+%       - [variableinputN example (if applicable)]
+%       - [variableinputN default]
+%
+% Function output:
+%   - [output1]:
+%       - [output1 desc]
+%       - [output1 notes]
+%       - [output1 example (if applicable)]
+%   - [output2]:
+%       - [output2 desc]
+%       - [output2 notes]
+%       - [output2 example (if applicable)]
+%   ...
+%   - [outputN]:
+%       - [outputN desc]
+%       - [outputN notes]
+%       - [outputN example (if applicable)]
+%
 
     % Define default arguments
     defaults = struct(...
@@ -65,14 +118,9 @@ function [raw,info] = simsignal_vsasl3dflex(varargin)
     
     % Update fov & dim if reading from pfile
     if (isempty(args.fov) || isempty(args.dim))
-        % Determine FOV/dim/Nneighbors based on trajectory type
+        % Determine FOV/dim
         args.fov = info.fov*ones(1,3);
         args.dim = info.dim*ones(1,3);
-        if isSOS
-            % For SOS, fix the z fov, dim, and number of neighbors
-            args.fov(3) = info.slthick*info.nslices;
-            args.dim(3) = info.nleaves*info.nslices;
-        end
     end
     
     % Make image space grid
