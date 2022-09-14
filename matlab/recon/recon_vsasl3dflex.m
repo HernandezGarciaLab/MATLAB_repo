@@ -9,6 +9,7 @@ function im = recon_vsasl3dflex(varargin)
         'itrmax',       15, ... % Max number of iterations for IR
         'frames',       'all', ... % Frames to recon
         'ndel',         0, ... % Gradient sample delay
+        'nramp',        [], ... % Number of ramp points in spiral traj
         'pdorder',      -1, ... % Order of phase detrending poly fit
         'nworkers',     feature('numcores'), ... % Number of workers to use in parpool
         'scaleoutput',  1 ... % Option to scale output to full dynamic range
@@ -56,8 +57,10 @@ function im = recon_vsasl3dflex(varargin)
     navpts = find(vecnorm(ks_0,2,2) < args.tol);
     navpts(navpts > info.ndat*3/4) = []; % reject navpts in first 1/4
     navpts(navpts < info.ndat*1/4) = []; % reject navpts in last 1/4
-    [~,nramp] = max(vecnorm(ks_0(1:round(info.ndat/2),:),2,2));
-    nramp = nramp + 2; % add a small sample buffer
+    if isempty(args.nramp)
+        [~,args.nramp] = max(vecnorm(ks_0(1:round(info.ndat/2),:),2,2));
+        args.nramp = args.nramp + 2; % add a small sample buffer
+    end
     
     % Transform trajectory to entire trajectory
     ks = zeros(info.ndat, 3, info.nleaves, info.nslices);
@@ -84,47 +87,40 @@ function im = recon_vsasl3dflex(varargin)
     end
     
     % Remove ramp points
-    fprintf('\nRemoving %d ramp points from data...', nramp);
-    ks([1:nramp info.ndat-nramp:info.ndat],:,:,:) = [];
-    raw(:,[1:nramp info.ndat-nramp:info.ndat],:,:,:) = [];
+    fprintf('\nRemoving %d ramp points from data...', args.nramp);
+    ks([1:args.nramp info.ndat-args.nramp:info.ndat],:,:,:) = [];
+    raw(:,[1:args.nramp info.ndat-args.nramp:info.ndat],:,:,:) = [];
 
 %% Set up NUFFT
-    % Determine FOV/dim/Nneighbors based on trajectory type
-    fov = info.xyfov*ones(1,3);
-    dim = info.xydim*ones(1,3);
-    nneighbors = 6*ones(1,3);
-    if isSOS
-        % For SOS, fix the z fov, dim, and number of neighbors
-        fov(3) = info.slthick*info.nslices;
-        dim(3) = info.nleaves*info.nslices;
-        nneighbors(3) = 2;
-    end
-    
+    % Extract dim and fov from info so info isn't broadcasted to parfor
+    dim = info.dim;
+    fov = info.fov;
+
     % Reshape and scale k from -pi to pi
-    omega = 2*pi * fov./dim .* ...
+    omega = 2*pi * fov / dim * ...
         [reshape(ks(:,1,:,:),[],1), ...
         reshape(ks(:,2,:,:),[],1), ...
         reshape(ks(:,3,:,:),[],1)];
     
     % Create NUFFT object
-    nufft_args = {dim,...
-        nneighbors,...
-        2*dim,...
-        dim/2,...
+    nufft_args = {dim*ones(1,3),...
+        6*ones(1,3),...
+        2*dim*ones(1,3),...
+        dim/2*ones(1,3),...
         'table',...
         2^10,...
         'minmax:kb'};
-    G = Gnufft(true(dim), [{omega}, nufft_args(:)']);
+    G = Gnufft(true(dim*ones(1,3)), [{omega}, nufft_args(:)']);
     
     % Create density compensation using pipe algorithm
     dcf = pipedcf(G,args.itrmax);
     
 %% Reconstruct image using NUFFT
     % Reconstruct point spread function
-    psf = reshape(G' * ones(numel(ks(:,1,:,:)),1), dim);
+    psf = reshape(G' * ones(numel(ks(:,1,:,:)),1), dim*ones(1,3));
     
     % Initialize output array and progress string
-    im = zeros([dim,info.ncoils,length(args.frames)]);
+    im = zeros([dim*ones(1,3),info.ncoils,length(args.frames)]);
     fprintf('\nReconning image... ');
     msg_fprog = '';
     
@@ -142,7 +138,7 @@ function im = recon_vsasl3dflex(varargin)
         parfor (coiln = 1:info.ncoils, args.nworkers)
             % Recon using adjoint NUFFT operation
             data = reshape(raw(framen,:,:,:,coiln),[],1);
-            im(:,:,:,coiln,framen) = reshape(G' * (dcf.*data), dim);
+            im(:,:,:,coiln,framen) = reshape(G' * (dcf.*data), dim*ones(1,3));
         end
         
     end
@@ -154,12 +150,12 @@ function im = recon_vsasl3dflex(varargin)
     if nargout < 1
         % Save timeseries
         writenii('./timeseries.nii', abs(im), ...
-            fov, info.tr, args.scaleoutput);
+            fov*ones(1,3), info.tr, args.scaleoutput);
         fprintf('\nTimeseries saved to timeseries.nii');
         
         % Save point spread function
         writenii('./psf.nii', abs(psf), ...
-            fov, info.tr, args.scaleoutput);
+            fov*ones(1,3), info.tr, args.scaleoutput);
         fprintf('\nPoint spread function saved to psf.nii');
         
         % Clear im so it won't be returned

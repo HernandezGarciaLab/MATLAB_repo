@@ -27,8 +27,8 @@ function [raw,info] = simsignal_vsasl3dflex(varargin)
             'ncoils',   1, ... % Number of coils
             'tr',       4.5e6, ... % TR (usec)
             'te',       [], ... % TE (usec)
-            'xydim',    args.dim(1), ... % Image x/y dimension
-            'xyfov',    args.fov(1), ... % FOV (cm)
+            'dim',      args.dim(1), ... % Image x/y dimension
+            'fov',      args.fov(1), ... % FOV (cm)
             'slthick',  args.fov(3)/args.dim(3) ... % Slice Thickness (cm)
             );
     else
@@ -66,8 +66,8 @@ function [raw,info] = simsignal_vsasl3dflex(varargin)
     % Update fov & dim if reading from pfile
     if (isempty(args.fov) || isempty(args.dim))
         % Determine FOV/dim/Nneighbors based on trajectory type
-        args.fov = info.xyfov*ones(1,3);
-        args.dim = info.xydim*ones(1,3);
+        args.fov = info.fov*ones(1,3);
+        args.dim = info.dim*ones(1,3);
         if isSOS
             % For SOS, fix the z fov, dim, and number of neighbors
             args.fov(3) = info.slthick*info.nslices;

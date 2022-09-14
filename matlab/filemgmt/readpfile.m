@@ -31,8 +31,8 @@ function [raw,info] = readpfile(searchstr)
         'ncoils',   h.rdb.dab(2) - h.rdb.dab(1) + 1, ... % Number of coils
         'tr',       h.image.tr, ... % TR (usec)
         'te',       h.image.te, ... % TE (usec)
-        'xydim',    h.image.dim_X, ... % Image x/y dimension
-        'xyfov',    h.image.dfov/10, ... % FOV (cm)
+        'dim',      h.image.dim_X, ... % Image x/y dimension
+        'fov',      h.image.dfov/10, ... % FOV (cm)
         'slthick',  h.image.slthick/10 ... % Slice Thickness (cm)
         );
     
