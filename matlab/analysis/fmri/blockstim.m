@@ -1,4 +1,4 @@
-function [x,x_hires] = blockstim(nframes,tstart,toff,ton,tr)
+function [x,x_hires] = blockstim(nframes,tstart,toff,ton,tr,show)
 % function [x,x_hires] = blockstim(nframes,tstart,toff,ton,tr)
 %
 % Part of umasl project by Luis Hernandez-Garcia and David Frey
@@ -45,6 +45,10 @@ function [x,x_hires] = blockstim(nframes,tstart,toff,ton,tr)
 %       - temporal frame repetition time
 %       - double/float describing TR in seconds
 %       - default is 4.5
+%   - show:
+%       - option to show regresor
+%       - boolean integer (0 or 1) describing whether or not to use)
+%       - default is 0
 %
 % Function output:
 %   - x:
@@ -97,7 +101,14 @@ function [x,x_hires] = blockstim(nframes,tstart,toff,ton,tr)
     x_hires = x_hires(1:length(t_hires))';
     
     % Get final regressor
-    x = interp1(t_hires, x_hires, t);
+    x = interp1(t_hires(:), x_hires(:), t(:));
+    
+    % Show regressor
+    if show
+        figure
+        plot(t_hires,x_hires), hold on
+        scatter(t,x,'o'), hold off
+    end
     
 end
 

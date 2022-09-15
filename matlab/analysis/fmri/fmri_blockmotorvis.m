@@ -2,7 +2,7 @@
 workFile = 'timeseries.nii'; % Name of timeseries file to use
 dosub = 1; % option to do subtraction in this script
 frame1 = 5; % if asl, first frame to use in subtraction
-tstart = 9; % since ignoring 1st 2 asl frames
+tstart = -9; % since ignoring 1st 2 asl frames
 toff = 30; % 
 ton = 30;
 gFWHM = 0.05; % Gaussian smoothing filter full width half max (as fraction of fov)
@@ -12,7 +12,7 @@ gFWHM = 0.05; % Gaussian smoothing filter full width half max (as fraction of fo
 [im,h] = readnii(workFile);
 fov = h.dim(2:4).*h.pixdim(2:4)*10; % in mm
 tr = h.pixdim(5)*1e-3; % in s
-writenii(workFile,im,fov,tr*1e3,0);
+writenii(workFile,im,fov/10,tr*1e3,0);
 
 %% Realignment/reslicing using spm
 spm_realign(workFile);
@@ -30,4 +30,10 @@ spm_smooth(['r' workFile],['s' workFile],gFWHM*max(fov(:))*ones(1,3),4);
 
 %% Make design matrix
 [ts,h] = readnii(['r' workFile]);
-[x,x_hires] = blockstim(h.dim(5),tstart,toff,ton,h.pixdim(5));
+[x,x_hires] = blockstim(h.dim(5),tstart,toff,ton,h.pixdim(5)*1e-3,1);
+A = [ones(h.dim(5),1),x];
+
+%% Get beta and tscore values
+beta = pinv(A) * reshape(permute(ts,[4 1:3]),[],prod(h.dim(2:4)));
+beta = permute(reshape(beta,[2,h.dim(2:4)]),[2:4,1]);
+tscore = beta ./ std(beta,[],1:3);

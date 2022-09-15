@@ -149,6 +149,9 @@ function im = recon_vsasl3dflex(varargin)
     ks_0 = load('ktraj_cart.txt');
     kviews = load('kviews.txt');
     
+    % Determine trajectory type based on kz encoding fractions
+    isSOS = any(kviews(:,3)) < 1;
+    
     % Start parpool
     if args.nworkers>0 && isempty(gcp('nocreate'))
         fprintf('\n');
@@ -196,34 +199,38 @@ function im = recon_vsasl3dflex(varargin)
 
 %% Set up NUFFT
     % Extract dim and fov from info so info isn't broadcasted to parfor
-    dim = info.dim;
-    fov = info.fov;
+    fov = info.fov*ones(1,3);
+    dim = info.dim*ones(1,3);
+    if isSOS
+        fov(3) = info.nslices*info.slthick;
+        dim(3) = info.nslices;
+    end
 
     % Reshape and scale k from -pi to pi
-    omega = 2*pi * fov / dim * ...
+    omega = 2*pi * fov ./ dim .* ...
         [reshape(ks(:,1,:,:),[],1), ...
         reshape(ks(:,2,:,:),[],1), ...
         reshape(ks(:,3,:,:),[],1)];
     
     % Create NUFFT object
-    nufft_args = {dim*ones(1,3),...
+    nufft_args = {dim,...
         6*ones(1,3),...
-        2*dim*ones(1,3),...
-        dim/2*ones(1,3),...
+        2*dim,...
+        dim/2,...
         'table',...
         2^10,...
         'minmax:kb'};
-    G = Gnufft(true(dim*ones(1,3)), [{omega}, nufft_args(:)']);
+    G = Gnufft(true(dim), [{omega}, nufft_args(:)']);
     
     % Create density compensation using pipe algorithm
     dcf = pipedcf(G,args.itrmax);
     
 %% Reconstruct image using NUFFT
     % Reconstruct point spread function
-    psf = reshape(G' * ones(numel(ks(:,1,:,:)),1), dim*ones(1,3));
+    psf = reshape(G' * ones(numel(ks(:,1,:,:)),1), dim);
     
     % Initialize output array and progress string
-    im = zeros([dim*ones(1,3),info.ncoils,length(args.frames)]);
+    im = zeros([dim,info.ncoils,length(args.frames)]);
     fprintf('\nReconning image... ');
     msg_fprog = '';
     
@@ -241,24 +248,35 @@ function im = recon_vsasl3dflex(varargin)
         parfor (coiln = 1:info.ncoils, args.nworkers)
             % Recon using adjoint NUFFT operation
             data = reshape(raw(framen,:,:,:,coiln),[],1);
-            im(:,:,:,coiln,framen) = reshape(G' * (dcf.*data), dim*ones(1,3));
+            im(:,:,:,coiln,framen) = reshape(G' * (dcf.*data), dim);
         end
         
     end
     
     % Combine coils using RMS
-    im = sqrt( squeeze( mean( im.^2, 4) ) );
+    if info.ncoils > 1
+        im = sqrt( squeeze( mean( im.^2, 4) ) );
+    else
+        im = squeeze(im);
+    end
     
     % Save results that aren't returned to nifti:
     if nargout < 1
         % Save timeseries
         writenii('./timeseries.nii', abs(im), ...
-            fov*ones(1,3), info.tr, args.scaleoutput);
+            fov, info.tr, args.scaleoutput);
         fprintf('\nTimeseries saved to timeseries.nii');
+        
+        % Save timeseries phase
+        if info.ncoils == 1
+            writenii('./timeseries_phase.nii', angle(im), ...
+                fov, info.tr, args.scaleoutput);
+            fprintf('\nTimeseries phase saved to timeseries_phase.nii');
+        end
         
         % Save point spread function
         writenii('./psf.nii', abs(psf), ...
-            fov*ones(1,3), info.tr, args.scaleoutput);
+            fov, info.tr, args.scaleoutput);
         fprintf('\nPoint spread function saved to psf.nii');
         
         % Clear im so it won't be returned
