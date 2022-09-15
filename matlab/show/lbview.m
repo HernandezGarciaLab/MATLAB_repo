@@ -1,4 +1,64 @@
 function lbview(im, varargin)
+% function lbview(im, varargin)
+%
+% Part of umasl project by Luis Hernandez-Garcia and David Frey
+% @ University of Michigan 2022
+%
+% Description: Function to display 3d images in lightbox view
+%
+%
+% Notes:
+%   - default values in help message may not be up to date - check defaults
+%       structure under the function header
+%
+% Dependencies:
+%   - matlab default path
+%       - can be restored by typing 'restoredefaultpath'
+%   - umasl
+%       - github: fmrifrey/umasl
+%       - umasl/matlab/ and subdirectories must be in current path
+%
+% Static input arguments:
+%   - im:
+%       - image to display
+%       - either a float/double 3D image array or name of a .nii file
+%       - no default; required argument
+%
+% Variable input arguments (type 'help varargin' for usage info):
+%   - 'frame':
+%       - frame of timeseries image to display
+%       - integer describing desired frame index
+%       - only applicable if size of 4th dimension > 1
+%       - default is 1
+%   - 'slices':
+%       - slices of image to show
+%       - either an integer array describing desired slice indices or 'all'
+%       - if 'all' is passed, all slices will be shown
+%       - default is 'all'
+%   - 'logscale'
+%       - option to display image in logarithmic scale
+%       - boolean integer (0 or 1) describing whether or not to use
+%       - default is 0
+%   - 'nrows':
+%       - number of rows to display slices in
+%       - integer describing number of rows
+%       - if 'all' is passed, nrows will shape lightbox into a square
+%       - default is 'all'
+%   - 'caxis':
+%       - color scale axis bounds
+%       - float/double 1x2 array decribing minimum and maximum intensity of
+%           color scale
+%       - if 'auto' is passed, caxis will use min and max values of image
+%       - default is 'auto'
+%   - 'colormap:
+%       - color map
+%       - string describing matlab color map to use
+%       - default is 'gray'
+%   - 'colorbar':
+%       - option to include a colorbar
+%       - boolean integer (0 or 1) describing whether or not to use
+%       - default is 1
+%
 
     % Define default arguments
     defaults = struct(...

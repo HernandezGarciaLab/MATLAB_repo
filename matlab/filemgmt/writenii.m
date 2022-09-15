@@ -1,4 +1,49 @@
 function writenii(niifile_name,im,fov,tr,doscl)
+% function writenii(niifile_name,im,fov,tr,doscl)
+%
+% Part of umasl project by Luis Hernandez-Garcia and David Frey
+% @ University of Michigan 2022
+%
+% Description: Function to write nii image file from Nd image array
+%
+%
+% Notes:
+%   - no defaults on input arguments, all arguments are required
+%
+% Dependencies:
+%   - matlab default path
+%       - can be restored by typing 'restoredefaultpath'
+%   - umasl
+%       - github: fmrifrey/umasl
+%       - umasl/matlab/ and subdirectories must be in current path
+%
+% Static input arguments:
+%   - niifile_name:
+%       - name of nii file to save to
+%       - string describing file path/name
+%       - if string does not include '.nii', it will be automatically
+%           appended
+%       - no default, necessary argument
+%   - im:
+%       - image array
+%       - Nd array with image data
+%       - no default, necessary argument
+%   - fov:
+%       - image field of view
+%       - array of 1ximage size describing image fov (standard: cm)
+%       - no default, necessary argument
+%   - tr:
+%       - temporal frame repetition time
+%       - double/float describing tr (standard: ms)
+%       - no default, necessary argument
+%   - doscl:
+%       - option to scale output to full dynamic range in save file
+%       - boolean integer (0 or 1) describing whether or not to use
+%       - operation makes use of scl_* nifti header fields, which is not
+%           supported by some outside functions (all umasl functions
+%           support this)
+%       - no default, necessary argument
+%
 
     % Add .nii extension if user left it out
     if ~contains(niifile_name,'.nii')

@@ -1,5 +1,39 @@
 function [im,h] = readnii(niifile_name)
-    
+% function [im,h] = readnii(niifile_name)
+%
+% Part of umasl project by Luis Hernandez-Garcia and David Frey
+% @ University of Michigan 2022
+%
+% Description: Function to read nii image file into Nd image array
+%
+%
+% Notes:
+%   - no defaults on input arguments, all arguments are required
+%
+% Dependencies:
+%   - matlab default path
+%       - can be restored by typing 'restoredefaultpath'
+%   - umasl
+%       - github: fmrifrey/umasl
+%       - umasl/matlab/ and subdirectories must be in current path
+%
+% Static input arguments:
+%   - niifile_name:
+%       - name of nii file to read from
+%       - string describing file path/name
+%       - if string does not include '.nii', it will be automatically
+%           appended
+%       - no default, necessary argument
+%
+% Function outputs:
+%   - im:
+%       - output image
+%       - double/float image array of N dimensions
+%       - image will be automatically scaled and reshaped based on header
+%   - h:
+%       - nifti header structure
+%
+
     % Add .nii extension if user left it out
     if ~contains(niifile_name,'.nii')
         niifile_name = [niifile_name '.nii'];

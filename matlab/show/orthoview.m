@@ -1,4 +1,67 @@
 function orthoview(im,varargin)
+% function orthoview(im, varargin)
+%
+% Part of umasl project by Luis Hernandez-Garcia and David Frey
+% @ University of Michigan 2022
+%
+% Description: Function to display 3d images in orthogonal cut view
+%
+%
+% Notes:
+%   - default values in help message may not be up to date - check defaults
+%       structure under the function header
+%
+% Dependencies:
+%   - matlab default path
+%       - can be restored by typing 'restoredefaultpath'
+%   - umasl
+%       - github: fmrifrey/umasl
+%       - umasl/matlab/ and subdirectories must be in current path
+%
+% Static input arguments:
+%   - im:
+%       - image to display
+%       - either a float/double 3D image array or name of a .nii file
+%       - no default; required argument
+%
+% Variable input arguments (type 'help varargin' for usage info):
+%   - 'fov':
+%       - field of view of image
+%       - 1x3 double/float array describing image fov (or at least
+%           dimensional ratio, units don't matter as much here)
+%       - if reading im from nii file, fov will automatically be read
+%       - if empty and not reading im from file, fov will be assumed from
+%           dimensions, which may be inaccurate
+%       - default is empty
+%   - 'frame':
+%       - frame of timeseries image to display
+%       - integer describing desired frame index
+%       - only applicable if size of 4th dimension > 1
+%       - default is 1
+%   - 'offset':
+%       - cut offset for each dimension
+%       - 1x3 integer array describing offset from isocenter in each
+%           dimension
+%       - default is [0,0,0]
+%   - 'logscale'
+%       - option to display image in logarithmic scale
+%       - boolean integer (0 or 1) describing whether or not to use
+%       - default is 0
+%   - 'caxis':
+%       - color scale axis bounds
+%       - float/double 1x2 array decribing minimum and maximum intensity of
+%           color scale
+%       - if 'auto' is passed, caxis will use min and max values of image
+%       - default is 'auto'
+%   - 'colormap:
+%       - color map
+%       - string describing matlab color map to use
+%       - default is 'gray'
+%   - 'colorbar':
+%       - option to include a colorbar
+%       - boolean integer (0 or 1) describing whether or not to use
+%       - default is 1
+%
 
     % Define default arguments
     defaults = struct(...

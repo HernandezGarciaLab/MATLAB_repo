@@ -1,4 +1,28 @@
 function h = makeniihdr(varargin)
+% function h = makeniihdr(varargin)
+%
+% Part of umasl project by Luis Hernandez-Garcia and David Frey
+% @ University of Michigan 2022
+%
+% Description: Function to make nii header
+%
+% Dependencies:
+%   - matlab default path
+%       - can be restored by typing 'restoredefaultpath'
+%   - umasl
+%       - github: fmrifrey/umasl
+%       - umasl/matlab/ and subdirectories must be in current path
+%
+% Notes: 
+%   - variable input arguments mirror nii header structure fields, for more
+%       info: https://nifti.nimh.nih.gov/pub/dist/src/niftilib/nifti1.h
+%   - most fields will already be filled in with good defaults
+%   - this function is intended to be called by other scripts, not users
+%
+% Function output:
+%   - h:
+%       - nifti header structure
+%
 
     % Define empty (default) header
     h_empty = struct (...

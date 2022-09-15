@@ -1,4 +1,85 @@
 function im_sub = aslsub(im,varargin)
+% function im_sub = aslsub(im,varargin)
+%
+% Part of umasl project by Luis Hernandez-Garcia and David Frey
+% @ University of Michigan 2022
+%
+% Description: Function to perform ASL subtraction on timeseries images
+%
+%
+% Notes:
+%   - if output is returned, nii files will not be saved to conserve space
+%       and prevent overwriting, and vice verse for when output is not
+%       returned (see 'im_sub' under 'Function output')
+%   - default values in help message may not be up to date - check defaults
+%       structure under the function header
+%
+% Dependencies:
+%   - matlab default path
+%       - can be restored by typing 'restoredefaultpath'
+%   - umasl
+%       - github: fmrifrey/umasl
+%       - umasl/matlab/ and subdirectories must be in current path
+%
+% Static input arguments:
+%   - im:
+%       - timeseries image to perform subtraction on
+%       - either a float/double 3D image array or name of a .nii file
+%       - if passing in a 3D image array, must also specify fov and TR
+%       - default is 'timeseries'
+%
+% Variable input arguments (type 'help varargin' for usage info):
+%   - 'fstart':
+%       - first frame to use in subtraction
+%       - integer describing index of first frame
+%       - default is 3 (assuming 2 M0 frames)
+%   - 'fend':
+%       - last frame to use in subtraction
+%       - integer describing index of first frame, or 'auto'
+%       - if 'auto' is passed, the last frame will be the last frame in
+%           timeseries
+%       - default is 'auto'
+%   - 'order':
+%       - order of subtraction
+%       - boolean integer (0 or 1) describing order
+%       - 0 is control, label, control, label
+%       - 1 is label, contrl, label, control
+%       - default is 0
+%   - 'tr'
+%       - temporal frame repetition time of timeseries
+%       - double/float describing tr (ms)
+%       - not necessary if reading timeseries from file
+%       - must specify (no default) if im is passed as image array
+%   - 'fov'
+%       - field of view of image
+%       - double/float array of size 1x3 describing FOV (cm)
+%       - not necessary if reading timeseries from file
+%       - must specify (no default) if im is passed as image array
+%   - 'sur'
+%       - option to use "surround" algorithm to preserve temporal
+%           resolution
+%       - boolean integer (0 or 1) decribing whether or not to use
+%       - default is 1
+%   - 'rel'
+%       - option output subtraction as relative percent signal change to M0
+%       - boolean integer (0 or 1) decribing whether or not to use
+%       - will return error if fstart <= 1 since it has no M0 frames to use
+%       - default is 0
+%   - 'scaleoutput'
+%       - option to scale nii files to full dynamic range
+%       - boolean integer (0 or 1) to use or not
+%       - type 'help writenii' for more information
+%       - default is 1
+%
+% Function output:
+%   - im_sub
+%       - subtraction timeseries image
+%       - array of image dimensions
+%       - if im_sub is returned, images will not be saved to file
+%       - if im_sub is not returned, images (mean, standard deviation, &
+%           timeseries of control, label, and subtraction images) will be
+%           saved to nii files
+%
 
     % Define default arguments
     defaults = struct(...

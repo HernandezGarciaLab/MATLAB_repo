@@ -1,4 +1,39 @@
 function [raw,info] = readpfile(searchstr)
+% [raw,info] = readpfile(searchstr)
+%
+% Part of umasl project by Luis Hernandez-Garcia and David Frey
+% @ University of Michigan 2022
+%
+% Description: Function to read in data from vsasl3dflex sequence pfile
+%
+%
+% Notes:
+%   - no input argument defaults, all are required
+%   - this function is a bit low-level, output is tailored for umasl
+%
+% Dependencies:
+%   - matlab default path
+%       - can be restored by typing 'restoredefaultpath'
+%   - umasl
+%       - github: fmrifrey/umasl
+%       - umasl/matlab/ and subdirectories must be in current path
+%
+% Static input arguments:
+%   - searchstr:
+%       - search string for pfile
+%       - string describing pfile search path
+%       - if multiple pfiles match the search string, first pfile will be
+%           used
+%       - default is 'P*.7'
+%
+% Function output:
+%   - raw"
+%       - raw data array
+%       - complex double/float of size nframes x ndat x nleaves x nslices x
+%           ncoils
+%   - info:
+%       - information structure containing important scan information
+%
 
     % Set default for search string
     if nargin < 1 || isempty(searchstr)
@@ -29,7 +64,7 @@ function [raw,info] = readpfile(searchstr)
         'nframes',  h.image.user1, ... % Number of temporal frames
         'nslices',  h.image.slquant, ... % Number of slices
         'ncoils',   h.rdb.dab(2) - h.rdb.dab(1) + 1, ... % Number of coils
-        'tr',       h.image.tr, ... % TR (usec)
+        'tr',       h.image.tr*1e-3, ... % TR (ms)
         'te',       h.image.te, ... % TE (usec)
         'dim',      h.image.dim_X, ... % Image x/y dimension
         'fov',      h.image.dfov/10, ... % FOV (cm)
