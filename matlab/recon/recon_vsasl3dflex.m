@@ -67,6 +67,13 @@ function im = recon_vsasl3dflex(varargin)
 %       - integer array containing specific frames to recon
 %       - if 'all' is passed, all frames will be reconned
 %       - default is 'all'
+%   - 'isovox'
+%       - option to use isotropic voxel sizes
+%       - boolean integer (0 or 1) describing whether or not voxels are
+%           isotropic
+%       - some old data has a different z fov/dim, which would require
+%           isovox = 0 to properly reconstruct
+%       - default is 1
 %   - 'ndel'
 %       - gradient sample delay compensation
 %       - integer describing number of samples to shift signal by in each
@@ -114,6 +121,7 @@ function im = recon_vsasl3dflex(varargin)
         'tol',          1e-5, ... % Kspace distance tolerance
         'itrmax',       15, ... % Max number of iterations for IR
         'frames',       'all', ... % Frames to recon
+        'isovox',       1, ... % flag for isotropic voxels between x&y / z
         'ndel',         0, ... % Gradient sample delay
         'nramp',        [], ... % Number of ramp points in spiral traj
         'pdorder',      -1, ... % Order of phase detrending poly fit
@@ -201,10 +209,10 @@ function im = recon_vsasl3dflex(varargin)
     % Extract dim and fov from info so info isn't broadcasted to parfor
     fov = info.fov*ones(1,3);
     dim = info.dim*ones(1,3);
-%     if isSOS
-%         fov(3) = info.nslices*info.slthick;
-%         dim(3) = info.nslices;
-%     end
+    if isSOS && ~args.isovox
+        fov(3) = info.nslices*info.slthick;
+        dim(3) = info.nslices;
+    end
 
     % Reshape and scale k from -pi to pi
     omega = 2 * pi .* fov ./ dim .* ...
