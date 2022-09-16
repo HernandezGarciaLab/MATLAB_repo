@@ -150,7 +150,7 @@ function im = recon_vsasl3dflex(varargin)
     kviews = load('kviews.txt');
     
     % Determine trajectory type based on kz encoding fractions
-    isSOS = any(kviews(:,3)) < 1;
+    isSOS = any(kviews(:,3) < 1);
     
     % Start parpool
     if args.nworkers>0 && isempty(gcp('nocreate'))
@@ -201,13 +201,13 @@ function im = recon_vsasl3dflex(varargin)
     % Extract dim and fov from info so info isn't broadcasted to parfor
     fov = info.fov*ones(1,3);
     dim = info.dim*ones(1,3);
-    if isSOS
-        fov(3) = info.nslices*info.slthick;
-        dim(3) = info.nslices;
-    end
+%     if isSOS
+%         fov(3) = info.nslices*info.slthick;
+%         dim(3) = info.nslices;
+%     end
 
     % Reshape and scale k from -pi to pi
-    omega = 2*pi * fov ./ dim .* ...
+    omega = 2 * pi .* fov ./ dim .* ...
         [reshape(ks(:,1,:,:),[],1), ...
         reshape(ks(:,2,:,:),[],1), ...
         reshape(ks(:,3,:,:),[],1)];
@@ -227,7 +227,7 @@ function im = recon_vsasl3dflex(varargin)
     
 %% Reconstruct image using NUFFT
     % Reconstruct point spread function
-    psf = reshape(G' * ones(numel(ks(:,1,:,:)),1), dim);
+    psf = 1/size(G,2) * reshape(G' * ones(numel(ks(:,1,:,:)),1), dim);
     
     % Initialize output array and progress string
     im = zeros([dim,info.ncoils,length(args.frames)]);
@@ -248,7 +248,7 @@ function im = recon_vsasl3dflex(varargin)
         parfor (coiln = 1:info.ncoils, args.nworkers)
             % Recon using adjoint NUFFT operation
             data = reshape(raw(framen,:,:,:,coiln),[],1);
-            im(:,:,:,coiln,framen) = reshape(G' * (dcf.*data), dim);
+            im(:,:,:,coiln,framen) = 1/size(G,2) * reshape(G' * (dcf.*data), dim);
         end
         
     end
@@ -352,5 +352,8 @@ function Wi = pipedcf(G,itrmax)
         Wi = Wi ./ d;
         
     end
+    
+    % Scale weights from 0 - 1
+    Wi = (Wi - min(Wi(:))) / (max(Wi(:)) - min(Wi(:)));
     
 end
