@@ -101,7 +101,7 @@ function im_sub = aslsub(im,varargin)
     
     % Define default for im
     if nargin < 1 || isempty(im)
-        im = 'timeseries';
+        im = 'timeseries_mag';
     elseif iscomplex(im)
         warning('Complex images are not supported, using absolute value');
         im = abs(im);
