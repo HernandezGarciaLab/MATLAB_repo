@@ -70,10 +70,11 @@ function im = recon_vsasl3dflex(varargin)
 %   - 'smap'
 %       - coil sensitivity map for multi-coil datasets
 %       - complex double/float array of dim x ncoils representing
-%           sensitivity for each coil
+%           sensitivity for each coil, or 'estimate'
 %       - if left empty, recon will use RMS method to combine coils and
 %           write 'coils_*.nii' images so user can make a smap for future
-%       - default is empty
+%       - if 'estimate' is passed, recon will estimate sense map using SSoS
+%       - default is 'estimate'
 %   - 'isovox'
 %       - option to use isotropic voxel sizes
 %       - boolean integer (0 or 1) describing whether or not voxels are
@@ -128,7 +129,7 @@ function im = recon_vsasl3dflex(varargin)
         'tol',          1e-5, ... % Kspace distance tolerance
         'itrmax',       15, ... % Max number of iterations for IR
         'frames',       'all', ... % Frames to recon
-        'smap',         [], ... % Sensitivity map for coil combination
+        'smap',         'estimate', ... % Sensitivity map for coil combination
         'isovox',       1, ... % flag for isotropic voxels between x&y / z
         'ndel',         0, ... % Gradient sample delay
         'nramp',        [], ... % Number of ramp points in spiral traj
@@ -270,22 +271,27 @@ function im = recon_vsasl3dflex(varargin)
     end
     
     if info.ncoils > 1 && isempty(args.smap)
-        % Save coil-wise images to file for smap construction
-        writenii('./coils_mag.nii', squeeze(abs(im(:,:,:,:,1))), ...
-            fov, 1, args.scaleoutput);
-        writenii('./coils_ang.nii', squeeze(angle(im(:,:,:,:,1))), ...
-            fov, 1, args.scaleoutput);
-        fprintf('\nCoil images (frame 1) saved to coil_*.nii');
-        
         % Combine coils using RMS
-        fprintf('\nUsing RMS to generate coil sensitivity map');
-        im = sqrt(mean(im.^2,4));
+        fprintf('\nUsing RMS to combine coils, this may be inaccurate.');
+        im = sqrt( mean(im.^2,4) );
+        
+    elseif info.ncoils > 1 && strcmpi(args.smap,'estimate')
+        % Combine coils using Ssos sensitivity map
+        fprintf('\nNo sensitivtiy map passed, estimating one using ssos...\n');
+        args.smap = mri_sensemap_denoise(squeeze(im(:,:,:,:,1)),...
+            'niter',10,'thresh',0.05);
+        im = div0( sum( conj(args.smap) .* im, 4), ...
+            sum( abs(args.smap).^2, 4) );
         
     elseif info.ncoils > 1 && ~isempty(args.smap)
-        % Combine coils using sensitivity map
+        % Combine coils using passed in sensitivity map
         fprintf('\nUsing sensitivity map to combine coils');
         im = div0( sum( conj(args.smap) .* im, 4), ...
             sum( abs(args.smap).^2, 4) );
+        
+    else
+        % Tell user only 1 coils will be used
+        fprintf('\nNo coil combination required since using body coil');
     end
     
     % Reduce output dimensions
@@ -293,6 +299,16 @@ function im = recon_vsasl3dflex(varargin)
         
     % Save results that aren't returned to nifti:
     if nargout < 1
+        
+        if info.ncoils > 1
+            % Save coil-wise images to file for better smap construction
+            writenii('./coils_mag.nii', squeeze(abs(im(:,:,:,:,1))), ...
+                fov, 1, args.scaleoutput);
+            writenii('./coils_ang.nii', squeeze(angle(im(:,:,:,:,1))), ...
+                fov, 1, args.scaleoutput);
+            fprintf('\nCoil images (frame 1) saved to coil_*.nii');
+        end
+        
         % Save timeseries
         writenii('./timeseries_mag.nii', abs(im), ...
             fov, info.tr, args.scaleoutput);
@@ -303,6 +319,10 @@ function im = recon_vsasl3dflex(varargin)
             writenii('./timeseries_ang.nii', angle(im), ...
                 fov, info.tr, args.scaleoutput);
             fprintf('\nTimeseries phase saved to timeseries_ang.nii');
+        else
+            % Warn user of no timeseries phase being saved
+            fprintf('\nTimeseries phase will not be saved since phase ');
+            fprintf('is not preserved with RMS coil combo method');
         end
         
         % Save point spread function
