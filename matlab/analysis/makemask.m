@@ -44,7 +44,7 @@ function mask = makemask(im,varargin)
 %   - 'fwhm'
 %       - full width half max of gaussian smoothing kernel
 %       - double/float describing fwhm as fraction of FOV
-%       - default is 0.2
+%       - default is 0.05
 %   - 'thresh'
 %       - threshold as a fraction of standard deviation above mean
 %       - double/float describing fraction of std to use for thresholding
@@ -62,7 +62,7 @@ function mask = makemask(im,varargin)
     defaults = struct(...
         'fov',          [], ... % FOV (cm) (if im is not read from file)
         'frame',        1, ... % Frame to use if im is 4D
-        'fwhm',         0.5, ... % FWHM of gaussian kernel as fraction of FOV
+        'fwhm',         0.05, ... % FWHM of gaussian kernel as fraction of FOV
         'thresh',       0.75 ... % Mask threshold as frac. of std
         );
     
@@ -95,7 +95,7 @@ function mask = makemask(im,varargin)
     
     % Smooth image and read in smoothed image
     im_smooth = zeros(size(im));
-    spm_smooth(im,im_smooth,args.fwhm*max(args.fov(:))*ones(1,3),4);
+    spm_smooth(im,im_smooth,args.fwhm*size(im),4);
     
     % Loop through slices along each dimension
     mask = ones(size(im));

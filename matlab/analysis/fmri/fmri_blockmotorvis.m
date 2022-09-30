@@ -6,37 +6,44 @@ tstart = -9; % since ignoring 1st 2 asl frames
 toff = 30; % 
 ton = 30;
 gFWHM = 0.005; % Gaussian smoothing filter full width half max (as fraction of fov)
+domask = 1;
 
-%% Format nifti for spm operations
-% Remove scaling parameters since it does not work with spm and get fov/tr
+%% Read in nii and get important dimensions
 [im,h] = readnii(workFile);
-fov = h.dim(2:4).*h.pixdim(2:4)*10; % in mm
-tr = h.pixdim(5)*1e-3; % in s
-% writenii(workFile,im,fov/10,tr*1e3,0);
+fov = h.dim(2:4).*h.pixdim(2:4); % in cm
+tr = h.pixdim(5); % in ms
+if domask
+    if ~(exist('mask','var') == 1)
+        mask = readnii('mask');
+    end
+    im = mask.*im;
+    workFile = ['masked_' workFile];
+    writenii(workFile,im,fov,tr,1);
+end
 
 %% Realignment/reslicing using spm
 spm_realign(workFile);
 spm_reslice(workFile);
+workFile = ['r' workFile];
 
 %% Perform subtraction
 if dosub
-    aslsub(['r' workFile],'fstart',frame1,'order',1);
+    aslsub(workFile,'fstart',frame1,'order',1);
     workFile = 'sub.nii';
-    !mv sub.nii rsub.nii
 end
 
 %% Smoothing using spm
-spm_smooth(['r' workFile],['s' workFile],gFWHM*max(fov(:))*ones(1,3),4);
+spm_smooth(workFile,'tmpsmooth.nii',gFWHM*max(fov(:))*ones(1,3),4);
+s_im = readnii('tmpsmooth.nii'); !rm tmpsmooth.nii
 
 %% Make design matrix
-[ts,h] = readnii(['s' workFile]);
-[x,x_hires] = blockstim(h.dim(5),tstart,toff,ton,h.pixdim(5)*1e-3,1);
-A = [ones(h.dim(5),1),x];
+[x,x_hires] = blockstim(size(s_im,4),tstart,toff,ton,tr*1e-3,1);
+A = [ones(size(s_im,4),1),x];
 
 %% Get beta and tscore values
-beta = pinv(A) * reshape(permute(ts,[4 1:3]),[],prod(h.dim(2:4)));
+beta = pinv(A) * reshape(permute(s_im,[4 1:3]),[],prod(h.dim(2:4)));
 beta = permute(reshape(beta,[2,h.dim(2:4)]),[2:4,1]);
 tscore = beta ./ std(beta,[],1:3);
 
-writenii('beta.nii',beta,fov,1,1);
-writenii('tscore.nii',tscore,fov,1,1);
+writenii('beta.nii',beta,fov,tr,1);
+writenii('tscore.nii',tscore,fov,tr,1);
