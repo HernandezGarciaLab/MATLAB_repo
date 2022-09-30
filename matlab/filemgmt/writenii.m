@@ -66,7 +66,7 @@ function writenii(niifile_name,im,fov,tr,doscl)
         im = x;
     else
         scl_inter = 0;
-        scl_slope = 0;
+        scl_slope = 1;
     end
     
     % Get dim

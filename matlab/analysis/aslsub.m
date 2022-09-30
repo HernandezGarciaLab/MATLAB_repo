@@ -26,7 +26,7 @@ function im_sub = aslsub(im,varargin)
 %       - timeseries image to perform subtraction on
 %       - either a float/double 3D image array or name of a .nii file
 %       - if passing in a 3D image array, must also specify fov and TR
-%       - default is 'timeseries'
+%       - default is 'timeseries_mag'
 %
 % Variable input arguments (type 'help varargin' for usage info):
 %   - 'fstart':
