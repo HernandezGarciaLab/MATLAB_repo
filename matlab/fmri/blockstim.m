@@ -79,6 +79,10 @@ function [x,x_hires] = blockstim(nframes,tstart,toff,ton,tr,show)
     if nargin < 5 || isempty(tr)
         tr = 4.5;
     end
+    
+    if nargin < 6 || isempty(show)
+        show = 0;
+    end
 
     % Determine length of experiment
     tend = (nframes - 1) * tr;

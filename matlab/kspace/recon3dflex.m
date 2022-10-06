@@ -1,10 +1,10 @@
-function im = recon_vsasl3dflex(varargin)
-% function im = recon_vsasl3dflex(varargin)
+function im = recon3dflex(varargin)
+% function im = recon3dflex(varargin)
 %
 % Part of umasl project by Luis Hernandez-Garcia and David Frey
 % @ University of Michigan 2022
 %
-% Description: Function to reconstruct images from vsasl3dflex ASL
+% Description: Function to reconstruct images from *3dflex ASL
 %   sequence using 3D NUFFT with Pipe & Menon Density compensation
 %
 %

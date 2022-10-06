@@ -12,6 +12,12 @@ domask = 1;
 [im,h] = readnii(workFile);
 fov = h.dim(2:4).*h.pixdim(2:4); % in cm
 tr = h.pixdim(5); % in ms
+
+%% Realignment/reslicing using spm
+spm_realign(workFile);
+spm_reslice(workFile);
+rewritenii(['r' workFile]); % rewrite to make sure header is consistent
+workFile = ['r' workFile];
 if domask
     if ~(exist('mask','var') == 1)
         mask = readnii('mask');
@@ -21,11 +27,6 @@ if domask
     writenii(workFile,im,fov,tr,1);
 end
 
-%% Realignment/reslicing using spm
-spm_realign(workFile);
-spm_reslice(workFile);
-workFile = ['r' workFile];
-
 %% Perform subtraction
 if dosub
     aslsub(workFile,'fstart',frame1,'order',1);
@@ -34,6 +35,7 @@ end
 
 %% Smoothing using spm
 spm_smooth(workFile,'tmpsmooth.nii',gFWHM*max(fov(:))*ones(1,3),4);
+rewritenii('tmpsmooth.nii');
 s_im = readnii('tmpsmooth.nii'); !rm tmpsmooth.nii
 
 %% Make design matrix
