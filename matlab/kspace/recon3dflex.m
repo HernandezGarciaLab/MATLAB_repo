@@ -283,6 +283,9 @@ function im = recon3dflex(varargin)
         
     end
     
+    % Save first frame coil images for smap construction
+    imf1coils = im(:,:,:,:,1);
+    
     if info.ncoils > 1 && isempty(args.smap)
         % Combine coils using RMS
         fprintf('\nUsing RMS to combine coils, this may be inaccurate.');
@@ -315,9 +318,9 @@ function im = recon3dflex(varargin)
         
         if info.ncoils > 1
             % Save coil-wise images to file for better smap construction
-            writenii('./coils_mag.nii', squeeze(abs(im(:,:,:,:,1))), ...
+            writenii('./coils_mag.nii', squeeze(abs(imf1coils)), ...
                 fov, 1, args.scaleoutput);
-            writenii('./coils_ang.nii', squeeze(angle(im(:,:,:,:,1))), ...
+            writenii('./coils_ang.nii', squeeze(angle(imf1coils)), ...
                 fov, 1, args.scaleoutput);
             fprintf('\nCoil images (frame 1) saved to coil_*.nii');
         end
