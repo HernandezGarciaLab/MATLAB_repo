@@ -67,6 +67,16 @@ function im = recon3dflex(varargin)
 %       - integer array containing specific frames to recon
 %       - if 'all' is passed, all frames will be reconned
 %       - default is 'all'
+%   - 'resfactor'
+%       - resolution (dimension) upsampling factor
+%       - float/double describing factor
+%       - passing a value > 1 will result in higher output image dimension
+%       - default is 1
+%   - 'zoomfactor'
+%       - field of view zoom factor
+%       - float/double describing factor
+%       - passing a value > 1 will result in a smaller output image fov
+%       - default is 1
 %   - 'smap'
 %       - coil sensitivity map for multi-coil datasets
 %       - complex double/float array of dim x ncoils representing
@@ -80,7 +90,8 @@ function im = recon3dflex(varargin)
 %       - boolean integer (0 or 1) describing whether or not voxels are
 %           isotropic
 %       - some old data has a different z fov/dim, which would require
-%           isovox = 0 to properly reconstruct
+%           isovox = 0 to properly reconstruct, ideal for vsasl3dflex data
+%           acquired before august 2022
 %       - default is 1
 %   - 'ndel'
 %       - gradient sample delay compensation
@@ -129,6 +140,8 @@ function im = recon3dflex(varargin)
         'tol',          1e-5, ... % Kspace distance tolerance
         'itrmax',       15, ... % Max number of iterations for IR
         'frames',       'all', ... % Frames to recon
+        'resfactor',    1, ... % Resolution upsampling factor
+        'zoomfactor',   1, ... % FOV zoom factor
         'smap',         'estimate', ... % Sensitivity map for coil combination
         'isovox',       1, ... % flag for isotropic voxels between x&y / z
         'ndel',         0, ... % Gradient sample delay
@@ -216,11 +229,11 @@ function im = recon3dflex(varargin)
 
 %% Set up NUFFT
     % Extract dim and fov from info so info isn't broadcasted to parfor
-    fov = info.fov*ones(1,3);
-    dim = info.dim*ones(1,3);
+    fov = info.fov*ones(1,3) / args.zoomfactor;
+    dim = round(info.dim*ones(1,3) * args.resfactor);
     if isSOS && ~args.isovox
-        fov(3) = info.nslices*info.slthick;
-        dim(3) = info.nslices;
+        fov(3) = info.nslices*info.slthick / args.zoomfactor;
+        dim(3) = info.nslices * args.resfactor;
     end
 
     % Reshape and scale k from -pi to pi

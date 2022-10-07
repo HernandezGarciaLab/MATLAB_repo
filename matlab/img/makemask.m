@@ -94,8 +94,12 @@ function mask = makemask(im,varargin)
     end
     
     % Smooth image and read in smoothed image
+    fprintf('\nSmoothing with a FWHM of %.4f * FOV', args.fwhm);
     im_smooth = zeros(size(im));
     spm_smooth(im,im_smooth,args.fwhm*size(im),4);
+    
+    % Begin masking
+    fprintf('\nMasking with a threshold of mean + %.4f * std', args.thresh);
     
     % Loop through slices along each dimension
     mask = ones(size(im));
@@ -139,12 +143,12 @@ function mask = makemask(im,varargin)
         % Save mask
         writenii('./mask.nii', 1.*mask, ...
             args.fov, 1, 0);
-        fprintf('Mask saved to mask.nii');
+        fprintf('\nMask saved to mask.nii');
         
         % Clear im so it won't be returned
         clear mask;
     else
-        fprintf('Mask will not be saved to file since it is returned');
+        fprintf('\nMask will not be saved to file since it is returned');
     end
     
     % Save and print elapsed time

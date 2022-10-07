@@ -108,17 +108,16 @@ function zscore = spmJr(im,A,varargin)
     ncon = size(A,2);
     if nargin < 3 || isempty(args.C)
         args.C = eye(ncon);
-    elseif (size(args.C,1) ~= ncon || size(args.C,2) ~= ncon)
-        warning('Contrast matrix must be a square of size ncon x ncon, proceeding with an identity matrix');
+    elseif size(args.C,2) ~= ncon
+        warning('2nd dimension of contrast must be equal to second dimension of design matrix, proceeding with an identity matrix');
         args.C = eye(ncon);
     end
-    df = nframes - ncon + 1; % Degrees of freedom
     
     % Mask image
     if ischar(args.mask) % if mask points to a file name
         args.mask = readnii(args.mask);
     elseif ~isequal(size(args.mask),dim) % check dimensions
-        warning('Mask size does not match image size, proceeding with full mask');
+        warning('Mask size does not match image size, proceeding with full mask -- NOT RECOMMENDED!');
         args.mask = ones(dim);
     elseif isempty(args.mask)
         args.mask = ones(dim);
@@ -133,13 +132,20 @@ function zscore = spmJr(im,A,varargin)
     V = std(im,[],4).^2;
     
     % Calculate tscores for each contrast
+    ncon = size(args.C,1); % Only estimate tscores for desired contrasts
+    df = nframes - ncon + 1; % Degrees of freedom
     tscore = zeros([dim,ncon]); % tscore map
     variance = zeros([dim,ncon]); % constrast variance map
     for conn = 1:ncon
         rc = args.C(conn,:) * pinv(A); % Index current contrast in A
         variance(:,:,:,conn) = reshape(rc .* V(:) * rc', dim);
         tscore(:,:,:,conn) = ...
-            beta(:,:,:,conn) ./ sqrt(variance(:,:,:,conn)) .* args.mask;
+            beta(:,:,:,conn) ./ sqrt(variance(:,:,:,conn) + eps()) .* args.mask;
+        if isempty(args.mask)
+            % if no mask, try to correct for div0 issues
+            tscore(im(:,:,:,1) < min(im(:,:,:,1),[],'all') + ...
+                std(im(:,:,:,1),[],'all')) = 0;
+        end
     end
     
     % Convert tscores to zscores using spm

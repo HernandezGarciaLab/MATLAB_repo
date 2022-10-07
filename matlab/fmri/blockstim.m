@@ -14,7 +14,7 @@ function [x,x_hires] = blockstim(nframes,tstart,toff,ton,tr,show)
 %   - default values in help message may not be up to date - check defaults
 %       structure under the function header
 %
-% Dependencies:
+% Path dependencies:
 %   - matlab default path
 %       - can be restored by typing 'restoredefaultpath'
 %   - umasl
@@ -103,6 +103,7 @@ function [x,x_hires] = blockstim(nframes,tstart,toff,ton,tr,show)
     % Convolve hrf with stimulation waveform and correct length
     x_hires = conv(hrf,stim);
     x_hires = x_hires(1:length(t_hires))';
+    x_hires = x_hires - mean(x_hires);
     
     % Get final regressor
     x = interp1(t_hires(:), x_hires(:), t(:));
