@@ -46,8 +46,8 @@ function [x,x_hires] = blockstim(nframes,tstart,toff,ton,tr,show)
 %       - double/float describing TR in seconds
 %       - default is 4.5
 %   - show:
-%       - option to show regresor
-%       - boolean integer (0 or 1) describing whether or not to use)
+%       - option to show regresor image
+%       - boolean integer (0 or 1) describing whether or not to use
 %       - default is 0
 %
 % Function output:
@@ -103,16 +103,22 @@ function [x,x_hires] = blockstim(nframes,tstart,toff,ton,tr,show)
     % Convolve hrf with stimulation waveform and correct length
     x_hires = conv(hrf,stim);
     x_hires = x_hires(1:length(t_hires))';
-    x_hires = x_hires - mean(x_hires);
     
     % Get final regressor
     x = interp1(t_hires(:), x_hires(:), t(:));
     
     % Show regressor
     if show
-        figure
-        plot(t_hires,x_hires), hold on
+        cfigopen('Block stimulation regressor');
+        plot(t_hires,stim), hold on
+        plot(t_hires,x_hires)
         scatter(t,x,'o'), hold off
+        xlabel('time (s)')
+        yticks([])
+        title('Block stimulation regressor');
+        legend('Block stimulation', ...
+            'Continuous expected response', ...
+            'Discretized response');
     end
     
 end

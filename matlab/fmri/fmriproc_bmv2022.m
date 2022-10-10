@@ -25,9 +25,9 @@ rewritenii(im_name); % rewrite nii file to maintain consistent header fmt
 %   don't want to mask at all)
 
 % **** SET PARAMETERS ****
-mask_im = 'timeseries_mag.nii'; % name of img to use for mask generation
-mask_thresh = 0.6; % intensity threshold for masking
-mask_fwhm = 0.25; % fwhm for gaussian smoothing kernel (as fraction of fov)
+mask_im = '../human_SOS_cbf_4shot_itr1/timeseries_mag.nii'; % name of img to use for mask generation
+mask_thresh = 0.5; % intensity threshold for masking
+mask_fwhm = 0.15; % fwhm for gaussian smoothing kernel (as fraction of fov)
 % ************************
 
 % Perform operations
@@ -77,7 +77,7 @@ nframes = h.dim(5); % get number of frames
 % (this section is skippable if you don't want to smooth)
 
 % **** SET PARAMETERS ****
-smooth_fwhm = 0.005; % fwhm for gaussian smoothing kernel (as fraction of fov)
+smooth_fwhm = 2/64; % fwhm for gaussian smoothing kernel (as fraction of fov)
 % ************************
 
 % Perform operations
@@ -90,14 +90,14 @@ rewritenii(im_name); % rewrite nii file to maintain consistent header fmt
 % (this section is NOT skippable)
 
 % **** SET PARAMETERS ****
-stim_tstart = -9;
+stim_tstart = -18;
 stim_toff = 30;
 stim_ton = 30;
 % ************************
 
 % Perform operations
 [x,x_hires] = blockstim(nframes,stim_tstart,stim_toff,stim_ton,...
-    tr*1e-3,0); % create activation regressor
+    tr*1e-3,1); % create activation regressor
 baseline = ones(nframes,1); % create baseline regressor
 A = [baseline,x]; % make design matrix
 C = eye(2); % make contrast matrix
@@ -106,13 +106,13 @@ C = eye(2); % make contrast matrix
 % (this section is skippable if you don't want to do CompCor)
 
 % **** SET PARAMETERS ****
-compcor_stdthresh = 0.25; % std noise threshold (as fraction of max std)
-compcor_N = 5; % number of noise principal components to generate
+compcor_stdthresh = 0.9; % std noise threshold (as fraction of max std)
+compcor_N = 20; % number of noise principal components to generate
 % ************************
 
 % Perform operations
 A_noise = compcor(im_name,'stdthresh',compcor_stdthresh,'N',compcor_N,...
-    'A',A); % perform compcor
+    'A',A,'show',1); % perform compcor
 A = [A, A_noise]; % add A_noise into design matrix
 C = [C,zeros(2,size(A_noise,2))]; % append contrast matrix
 

@@ -124,8 +124,9 @@ function zscore = spmJr(im,A,varargin)
     end
     im = args.mask.*im;
     
-    % Estimate beta map by using ordinary least squares
+    % Estimate beta & residual map by using ordinary least squares
     beta = pinv(A) * reshape(permute(im,[4 1:3]),[],prod(dim));
+    residual = im - permute(reshape(A*beta, [nframes,dim]),[2:4,1]);
     beta = permute(reshape(beta,[ncon,dim]),[2:4,1]);
     
     % Calculate temporal variance of data
@@ -168,6 +169,10 @@ function zscore = spmJr(im,A,varargin)
         % Save contrast variance map    
         writenii('./variance.nii',variance,args.fov,1,args.scaleoutput);
         fprintf('\nTemporal contrast variance map saved to variance.nii');
+        
+        % Save residual map   
+        writenii('./residual.nii',residual,args.fov,1,args.scaleoutput);
+        fprintf('\nEstimate residual map saved to residual.nii');
         
         % Clear zscore so it won't be returned as ans
         clear zscore;

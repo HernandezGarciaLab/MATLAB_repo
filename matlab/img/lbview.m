@@ -1,5 +1,5 @@
-function lbview(im, varargin)
-% function lbview(im, varargin)
+function im_lb = lbview(im, varargin)
+% function im_lb = lbview(im, varargin)
 %
 % Part of umasl project by Luis Hernandez-Garcia and David Frey
 % @ University of Michigan 2022
@@ -58,6 +58,14 @@ function lbview(im, varargin)
 %       - option to include a colorbar
 %       - boolean integer (0 or 1) describing whether or not to use
 %       - default is 1
+%
+% Function output:
+%   - im_lb
+%       - lightbox concatenated image
+%       - 2D array of slicewise images (size is dependent on input specs)
+%       - no output will be returned unless specified (don't have to use ;
+%           to avoid answer being printed to console) 
+%       - if returned, lightbox image will not be shown
 %
 
     % Define default arguments
@@ -121,16 +129,21 @@ function lbview(im, varargin)
         im_lb = [im_lb; im_lb_row];
     end
     
-    % Display lightbox using imagesc
-    imagesc(im_lb);
-    set(gca,'Ydir','normal');
-    grid off
-    axis off
-    if args.colorbar
-        colorbar;
+    if nargout < 1
+        % Display lightbox using imagesc
+        imagesc(im_lb);
+        set(gca,'Ydir','normal');
+        grid off
+        axis off
+        if args.colorbar
+            colorbar;
+        end
+        colormap(args.colormap);
+        caxis(args.caxis);
+
+        % Clear im_lb if not returned so it won't be printed to console
+        clear im_lb
     end
-    colormap(args.colormap);
-    caxis(args.caxis);
     
 end
 

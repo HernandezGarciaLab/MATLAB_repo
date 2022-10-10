@@ -1,5 +1,5 @@
-function orthoview(im,varargin)
-% function orthoview(im, varargin)
+function im_ortho = orthoview(im,varargin)
+% function im_ortho = orthoview(im, varargin)
 %
 % Part of umasl project by Luis Hernandez-Garcia and David Frey
 % @ University of Michigan 2022
@@ -61,6 +61,14 @@ function orthoview(im,varargin)
 %       - option to include a colorbar
 %       - boolean integer (0 or 1) describing whether or not to use
 %       - default is 1
+%
+% Function output:
+%   - im_ortho
+%       - orthogonal concatenated image
+%       - 2D array of slicewise images (size is dependent on input specs)
+%       - no output will be returned unless specified (don't have to use ;
+%           to avoid answer being printed to console) 
+%       - if returned, ortho image will not be shown
 %
 
     % Define default arguments
@@ -129,15 +137,20 @@ function orthoview(im,varargin)
     % Concatenate cuts
     im_ortho = [squeeze(im_Sag)', squeeze(im_Cor)', squeeze(im_Ax)'];
     
-    % Display orthoviews using imagesc
-    imagesc(im_ortho);
-    set(gca,'Ydir','normal');
-    grid off
-    axis off
-    if args.colorbar
-        colorbar;
+    if nargout < 1
+        % Display orthoviews using imagesc
+        imagesc(im_ortho);
+        set(gca,'Ydir','normal');
+        grid off
+        axis off
+        if args.colorbar
+            colorbar;
+        end
+        colormap(args.colormap);
+        caxis(args.caxis);
+
+        % Clear im_ortho if not returned so it won't be printed to console
+        clear im_lb
     end
-    colormap(args.colormap);
-    caxis(args.caxis);
     
 end
