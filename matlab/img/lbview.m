@@ -44,6 +44,12 @@ function im_lb = lbview(im, varargin)
 %       - integer describing number of rows
 %       - if 'all' is passed, nrows will shape lightbox into a square
 %       - default is 'all'
+%   - 'ax'
+%       - axis to draw orthoviews on
+%       - if left empty, function will draw on current axis
+%       - if there already exists an image on the current axis which
+%           matches the size, the new image will be overlaid
+%       - default is empty
 %   - 'caxis':
 %       - color scale axis bounds
 %       - float/double 1x2 array decribing minimum and maximum intensity of
@@ -74,6 +80,7 @@ function im_lb = lbview(im, varargin)
         'slices',   'all', ...
         'logscale', 0, ...
         'nrows',    'auto', ...
+        'ax',       [], ...
         'caxis',    'auto', ...
         'colormap', 'gray', ...
         'colorbar', 1 ...
@@ -123,26 +130,71 @@ function im_lb = lbview(im, varargin)
             if slicen <=  size(im,3)
                 im_lb_row = [im_lb_row, im(:,:,slicen)'];
             else
-                im_lb_row = [im_lb_row, NaN(size(im,1),size(im,2))];
+                im_lb_row = [im_lb_row, min(im(:))*ones(size(im,1),size(im,2))];
             end
         end
         im_lb = [im_lb; im_lb_row];
     end
     
     if nargout < 1
+        
+        % Set auto caxis
+        if strcmpi(args.caxis,'auto')
+            args.caxis = [min(im_lb(:)),max(im_lb(:))];
+        end
+        
+        % Get underlay image
+        if ~isempty(args.ax)
+            uax = args.ax;
+            underlay = getimage(uax);
+            ucaxis = uax.CLim;
+            ucmap = uax.Colormap;
+        elseif ~isempty(get(gcf,'CurrentAxes'))
+            uax = get(gcf,'CurrentAxes');
+            underlay = getimage(uax);
+            ucaxis = uax.CLim;
+            ucmap = uax.Colormap;
+        else
+            underlay = zeros(size(im_lb));
+            ucaxis = [0 1];
+            ucmap = zeros(64,3);
+        end
+        
+        % Check that underlay image size matches overlay
+        if ~isequal(size(underlay),size(im_lb))
+            warning('imcompatible image sizes, cannot overlay on axis');
+            underlay = zeros(size(im_lb));
+            ucaxis = [0 1];
+            ucmap = zeros(64,3);
+        end
+            
+        % Normalize and clip images
+        underlay = (underlay - ucaxis(1)) / diff(ucaxis);
+        im_lb = (im_lb - args.caxis(1)) / diff(args.caxis);
+        underlay(underlay < 0) = 0;
+        underlay(underlay > 1) = 1;
+        underlay(im_lb > 0) = 1 + eps;
+        im_lb(im_lb < 0) = 0;
+        im_lb(im_lb > 1) = 1;
+
         % Display lightbox using imagesc
-        imagesc(im_lb);
+        imagesc(underlay + im_lb);
         set(gca,'Ydir','normal');
         grid off
         axis off
+        caxis([0 2+eps])
+        colormap([ucmap; colormap(args.colormap)]);
         if args.colorbar
-            colorbar;
+            cb = colorbar;
+            set(cb, ...
+                'XLim', [1,2] + eps, ...
+                'XTick', [1,2] + eps, ...
+                'XTickLabel', args.caxis);
         end
-        colormap(args.colormap);
-        caxis(args.caxis);
-
+        
         % Clear im_lb if not returned so it won't be printed to console
         clear im_lb
+        
     end
     
 end
