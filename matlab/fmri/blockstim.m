@@ -46,7 +46,7 @@ function [x,x_hires] = blockstim(nframes,tstart,toff,ton,tr,show)
 %       - double/float describing TR in seconds
 %       - default is 4.5
 %   - show:
-%       - option to show regresor image
+%       - option to show regressor image
 %       - boolean integer (0 or 1) describing whether or not to use
 %       - default is 0
 %

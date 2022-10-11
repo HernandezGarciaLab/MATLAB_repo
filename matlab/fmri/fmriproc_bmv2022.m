@@ -26,18 +26,12 @@ rewritenii(im_name); % rewrite nii file to maintain consistent header fmt
 
 % **** SET PARAMETERS ****
 mask_im = '../human_SOS_cbf_4shot_itr1/timeseries_mag.nii'; % name of img to use for mask generation
-mask_thresh = 0.5; % intensity threshold for masking
-mask_fwhm = 0.15; % fwhm for gaussian smoothing kernel (as fraction of fov)
+mask_thresh = 1/3; % intensity threshold for masking
+mask_fwhm = 3/32; % fwhm for gaussian smoothing kernel (as fraction of fov)
 % ************************
 
 % Perform operations
-makemask(mask_im,'fwhm',mask_fwhm,'thresh',mask_thresh) % make mask
-
-% Generate figure:
-cfigopen('Mask image');
-subplot(3,2,1), lbview(im_name); title('Timeseries image');
-subplot(3,2,2), lbview('mask'); title('Mask');
-subplot(3,2,3:6), lbview(readnii(im_name).*readnii('mask')); title('Masked image');
+makemask(mask_im,'fwhm',mask_fwhm,'thresh',mask_thresh,'show',1) % make mask
 
 %% Apply mask
 % (this section is skippable if you don't want to mask, but requires a mask

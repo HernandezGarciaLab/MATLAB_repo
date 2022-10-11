@@ -157,15 +157,36 @@ function [A_noise,im_clean] = compcor(im,varargin)
     
     % Show figures
     if args.show
+        
         % Noise map
         cfigopen('CompCor Noise Map');
         subplot(1,2,1)
-        lbview(tstd)
-        title('Temporal standard deviation');
+        lbview(tstd);
+        title('Before');
         subplot(1,2,2)
-        lbview(im_noise)
-        title(sprintf('%s percentile',iptnum2ordinal(100*args.stdthresh)));
+        lbview(std(im_clean,[],4));
+        title('After');
+        sgtitle('Standard deviation map');
         
+        % PCA
+        cfigopen('Principal Components of Noise');
+        subplot(2,1,2)
+        plot(diag(s))
+        title('Singular values');
+        subplot(2,1,1)
+        plot(A_noise)
+        title('Noise regressors');
+        
+        % BIC
+        cfigopen('Bayesian Information Criterion')
+        BIC = nframes*log(mean(im_clean.^2,4)) + size(A_noise,2)*log(nframes);
+        BIC(tstd < args.stdthresh * max(tstd(:))) = min(BIC(:));
+        subplot(2,1,1)
+        lbview(BIC);
+        title('BIC for noise voxels');
+        subplot(2,1,2)
+        histogram(BIC(BIC>min(BIC(:))),10);
+        title('BIC histogram');
         
     end
     

@@ -8,6 +8,9 @@ function im_lb = lbview(im, varargin)
 %
 %
 % Notes:
+%   - you can overlay two orthoview images by calling orthoview twice on
+%       the same axis handle with a hold on then adjusting the colorscale
+%       accordingly
 %   - default values in help message may not be up to date - check defaults
 %       structure under the function header
 %
@@ -44,12 +47,6 @@ function im_lb = lbview(im, varargin)
 %       - integer describing number of rows
 %       - if 'all' is passed, nrows will shape lightbox into a square
 %       - default is 'all'
-%   - 'ax'
-%       - axis to draw orthoviews on
-%       - if left empty, function will draw on current axis
-%       - if there already exists an image on the current axis which
-%           matches the size, the new image will be overlaid
-%       - default is empty
 %   - 'caxis':
 %       - color scale axis bounds
 %       - float/double 1x2 array decribing minimum and maximum intensity of
@@ -80,7 +77,6 @@ function im_lb = lbview(im, varargin)
         'slices',   'all', ...
         'logscale', 0, ...
         'nrows',    'auto', ...
-        'ax',       [], ...
         'caxis',    'auto', ...
         'colormap', 'gray', ...
         'colorbar', 1 ...
@@ -144,12 +140,8 @@ function im_lb = lbview(im, varargin)
         end
         
         % Get underlay image
-        if ~isempty(args.ax)
-            uax = args.ax;
-            underlay = getimage(uax);
-            ucaxis = uax.CLim;
-            ucmap = uax.Colormap;
-        elseif ~isempty(get(gcf,'CurrentAxes'))
+        if ~isempty(get(gcf,'CurrentAxes')) && ...
+                ishold(get(gcf,'CurrentAxes'))
             uax = get(gcf,'CurrentAxes');
             underlay = getimage(uax);
             ucaxis = uax.CLim;
@@ -162,7 +154,6 @@ function im_lb = lbview(im, varargin)
         
         % Check that underlay image size matches overlay
         if ~isequal(size(underlay),size(im_lb))
-            warning('imcompatible image sizes, cannot overlay on axis');
             underlay = zeros(size(im_lb));
             ucaxis = [0 1];
             ucmap = zeros(64,3);
@@ -183,13 +174,16 @@ function im_lb = lbview(im, varargin)
         grid off
         axis off
         caxis([0 2+eps])
-        colormap([ucmap; colormap(args.colormap)]);
+        ocmap = colormap(args.colormap);
+        ucmap = interp1(linspace(0,1,size(ucmap,1)),ucmap, ...
+            linspace(0,1,size(ocmap,1)));
+        colormap([ucmap; ocmap]);
         if args.colorbar
             cb = colorbar;
             set(cb, ...
                 'XLim', [1,2] + eps, ...
                 'XTick', [1,2] + eps, ...
-                'XTickLabel', args.caxis);
+                'XTickLabel', round(args.caxis,3));
         end
         
         % Clear im_lb if not returned so it won't be printed to console
