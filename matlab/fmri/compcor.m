@@ -140,8 +140,9 @@ function [A_noise,im_clean] = compcor(im,varargin)
     end
     
     % Normalize and round mask
-    mask = (mask - min(mask(:))) / (max(mask(:)) - min(mask(:)));
-    mask = round(mask);
+    args.mask = (args.mask - min(args.mask(:))) / ...
+        (max(args.mask(:)) - min(args.mask(:)));
+    args.mask = round(args.mask);
     
     % Determine im with noisy ROI masked
     tstd = std(im,[],4); % temporal standard deviation

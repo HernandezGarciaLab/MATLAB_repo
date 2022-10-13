@@ -44,7 +44,7 @@ subplot(3,2,3:6), lbview(readnii(im_name).*readnii('mask')); title('Masked image
 %   timeseries)
 
 % **** SET PARAMETERS ****
-sub_order = 1; % order of asl subtraction
+sub_order = 0; % order of asl subtraction
 sub_sur = 1; % option to subtract using 'sur' algorithm (preserves temporal res)
 sub_fstart = 5; % first frame to use in subtraction
 sub_fend = nframes; % last frame to use in subtraction

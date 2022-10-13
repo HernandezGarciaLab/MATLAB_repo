@@ -32,12 +32,12 @@ function [tSNR,sSNR] = aslsnr(im,mask)
 %       - default is 'mask'
 %
 % Function output:
-%   - sSNR:
-%       - spatial signal to noise ratio
-%       - double/float describing sSNR
 %   - tSNR:
 %       - temporal signal to noise ratio
 %       - double/float describing tSNR
+%   - sSNR:
+%       - spatial signal to noise ratio
+%       - double/float describing sSNR
 %
 
     % Define default for im

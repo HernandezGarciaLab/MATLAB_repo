@@ -130,8 +130,9 @@ function zscore = spmJr(im,A,varargin)
     end
     
     % Normalize and round mask
-    mask = (mask - min(mask(:))) / (max(mask(:)) - min(mask(:)));
-    mask = round(mask);
+    args.mask = (args.mask - min(args.mask(:))) / ...
+        (max(args.mask(:)) - min(args.mask(:)));
+    args.mask = round(args.mask);
     
     % Estimate beta & residual map by using ordinary least squares
     beta = pinv(A) * reshape(permute(im,[4 1:3]),[],prod(dim));
