@@ -47,12 +47,6 @@ function im_ortho = orthoview(im,varargin)
 %       - option to display image in logarithmic scale
 %       - boolean integer (0 or 1) describing whether or not to use
 %       - default is 0
-%   - 'ax'
-%       - axis to draw orthoviews on
-%       - if left empty, function will draw on current axis
-%       - if there already exists an image on the current axis which
-%           matches the size, the new image will be overlaid
-%       - default is empty
 %   - 'caxis':
 %       - color scale axis bounds
 %       - float/double 1x2 array decribing minimum and maximum intensity of
@@ -83,7 +77,6 @@ function im_ortho = orthoview(im,varargin)
         'frame',    1, ...
         'offset',   [0,0,0], ...
         'logscale', 0, ...
-        'ax',       [], ...
         'caxis',    'auto', ...
         'colormap', 'gray', ...
         'colorbar', 1 ...
@@ -137,74 +130,27 @@ function im_ortho = orthoview(im,varargin)
     end
     
     % Get cuts
-    args.offset = args.offset ./ abs(args.offset) .* ...
-        mod(abs(args.offset), round(size(im)/2));
-    im_Sag = im(round(size(im,1)/2) + args.offset(1), :, :);
-    im_Cor = im(:, round(size(im,2)/2) + args.offset(2), :);
-    im_Ax = im(:, :, round(size(im,3)/2) + args.offset(3));
+    im_Sag = circshift(im(round(size(im,1)/2), :, :),args.offset(1),1);
+    im_Cor = circshift(im(:, round(size(im,2)/2), :),args.offset(2),2);
+    im_Ax = circshift(im(:, :, round(size(im,3)/2)),args.offset(3),3);
     
     % Concatenate cuts
     im_ortho = [squeeze(im_Sag)', squeeze(im_Cor)', squeeze(im_Ax)'];
     
     if nargout < 1
-        
-        % Set auto caxis
-        if strcmpi(args.caxis,'auto')
-            args.caxis = [min(im_ortho(:)),max(im_ortho(:))];
-        end
-        
-        % Get underlay image
-        if ~isempty(args.ax)
-            uax = args.ax;
-            underlay = getimage(uax);
-            ucaxis = uax.CLim;
-            ucmap = uax.Colormap;
-        elseif ~isempty(get(gcf,'CurrentAxes'))
-            uax = get(gcf,'CurrentAxes');
-            underlay = getimage(uax);
-            ucaxis = uax.CLim;
-            ucmap = uax.Colormap;
-        else
-            underlay = zeros(size(im_ortho));
-            ucaxis = [0 1];
-            ucmap = zeros(64,3);
-        end
-        
-        % Check that underlay image size matches overlay
-        if ~isequal(size(underlay),size(im_ortho))
-            warning('imcompatible image sizes, cannot overlay on axis');
-            underlay = zeros(size(im_ortho));
-            ucaxis = [0 1];
-            ucmap = zeros(64,3);
-        end
-        
-        % Normalize and clip images
-        underlay = (underlay - ucaxis(1)) / diff(ucaxis);
-        im_ortho = (im_ortho - args.caxis(1)) / diff(args.caxis);
-        underlay(underlay < 0) = 0;
-        underlay(underlay > 1) = 1;
-        underlay(im_ortho > 0) = 1 + eps;
-        im_ortho(im_ortho < 0) = 0;
-        im_ortho(im_ortho > 1) = 1;
-        
-        % Display ortho using imagesc
-        imagesc(underlay + im_ortho);
+        % Display orthoviews using imagesc
+        imagesc(im_ortho);
         set(gca,'Ydir','normal');
         grid off
         axis off
-        caxis([0 2+eps])
-        colormap([ucmap; colormap(args.colormap)]);
         if args.colorbar
-            cb = colorbar;
-            set(cb, ...
-                'XLim', [1,2] + eps, ...
-                'XTick', [1,2] + eps, ...
-                'XTickLabel', args.caxis);
+            colorbar;
         end
-        
-        % Clear im_lb if not returned so it won't be printed to console
-        clear im_ortho
-        
+        colormap(args.colormap);
+        caxis(args.caxis);
+
+        % Clear im_ortho if not returned so it won't be printed to console
+        clear im_lb
     end
     
 end
