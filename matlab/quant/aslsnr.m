@@ -25,11 +25,11 @@ function [tSNR,sSNR] = aslsnr(im,mask)
 %       - image should be a subtraction timeseries (so there is no
 %           oscillation between M0/control/label)
 %       - either a float/double 3D image array or name of a .nii file
-%       - default is 'timeseries_mag'
+%       - default is 'sub'
 %   - mask:
 %       - image mask
 %       - str describing nii file or binary array of image dimensions
-%       - default is 'mask.nii'
+%       - default is 'mask'
 %
 % Function output:
 %   - sSNR:
@@ -42,7 +42,7 @@ function [tSNR,sSNR] = aslsnr(im,mask)
 
     % Define default for im
     if nargin < 1 || isempty(im)
-        im = 'timeseries_mag';
+        im = 'sub';
     elseif iscomplex(im)
         warning('Complex images are not supported, using absolute value');
         im = abs(im);
