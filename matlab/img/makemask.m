@@ -44,15 +44,11 @@ function mask = makemask(im,varargin)
 %   - 'fwhm'
 %       - full width half max of gaussian smoothing kernel
 %       - double/float describing fwhm as fraction of FOV
-%       - default is 1/32
+%       - default is 0.05
 %   - 'thresh'
 %       - threshold as a fraction of standard deviation above mean
 %       - double/float describing fraction of std to use for thresholding
-%       - default is 3/4
-%   - 'show'
-%       - option to show image masking
-%       - boolean integer (0 or 1) describing whether or not to use
-%       - default is 0
+%       - default is 0.75
 %
 % Function output:
 %   - mask
@@ -66,9 +62,8 @@ function mask = makemask(im,varargin)
     defaults = struct(...
         'fov',          [], ... % FOV (cm) (if im is not read from file)
         'frame',        1, ... % Frame to use if im is 4D
-        'fwhm',         1/32, ... % FWHM of gaussian kernel as fraction of FOV
-        'thresh',       3/4, ... % Mask threshold as frac. of std
-        'show',         0 ... % Option to show mask
+        'fwhm',         0.05, ... % FWHM of gaussian kernel as fraction of FOV
+        'thresh',       0.75 ... % Mask threshold as frac. of std
         );
     
     % Start timer
@@ -142,20 +137,9 @@ function mask = makemask(im,varargin)
     mask = zeros(size(im));
     mask(CC.PixelIdxList{imaxvol}) = 1;
     
-    % Show masking results
-    if args.show
-        cfigopen('Image masking');
-        lbview(im), hold on
-        lbview(im.*mask,'colormap', ...
-            [linspace(0,1,64)'.*ones(64,2), ...
-            0.5+0.5*(linspace(0,1,64).^0.5)'])
-        title(sprintf('Masking results\nfwhm: %.3f, thresh: %.3f', ...
-            args.fwhm,args.thresh));
-        hold off
-    end
-    
     % Save results that aren't returned to nifti:
     if nargout < 1
+        
         % Save mask
         writenii('./mask.nii', 1.*mask, ...
             args.fov, 1, 0);
