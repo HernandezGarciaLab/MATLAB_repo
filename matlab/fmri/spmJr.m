@@ -54,6 +54,10 @@ function zscore = spmJr(im,A,varargin)
 %       - str describing nii file or binary array of image dimensions
 %       - if left empty, image will not be masked
 %       - default is empty, which results in a full mask
+%   - 'tol'
+%       - image zero detection tolerance
+%       - double/float scalar value describing 0 value roundoff
+%       - default is 1e-3
 %   - 'scaleoutput'
 %       - option to scale nii files to full dynamic range
 %       - boolean integer (0 or 1) to use or not
@@ -74,6 +78,7 @@ function zscore = spmJr(im,A,varargin)
         'C',            [], ... % Contrast matrix
         'fov',          [], ... % FOV (cm) (if im is not read from file)
         'mask',         [], ... % Mask image
+        'tol',          1e-3, ... % Zero value tolerance
         'scaleoutput',  1 ... % Option to scale output to full dynamic range
         );
     
@@ -113,16 +118,16 @@ function zscore = spmJr(im,A,varargin)
         args.C = eye(ncon);
     end
     
-    % Mask image
+    % Get mask
     if ischar(args.mask) % if mask points to a file name
         args.mask = readnii(args.mask);
-    elseif ~isequal(size(args.mask),dim) % check dimensions
-        warning('Mask size does not match image size, proceeding with full mask -- NOT RECOMMENDED!');
-        args.mask = ones(dim);
-    elseif isempty(args.mask)
-        args.mask = ones(dim);
     end
-    im = args.mask.*im;
+    
+    % Check dimensions of mask
+    if ~isempty(args.mask) && ~isequal(size(args.mask),dim)
+        warning('Mask size does not match image size, proceeding without mask');
+        args.mask = [];
+    end
     
     % Estimate beta & residual map by using ordinary least squares
     beta = pinv(A) * reshape(permute(im,[4 1:3]),[],prod(dim));
@@ -142,10 +147,10 @@ function zscore = spmJr(im,A,varargin)
         variance(:,:,:,conn) = reshape(rc .* V(:) * rc', dim);
         tscore(:,:,:,conn) = ...
             beta(:,:,:,conn) ./ sqrt(variance(:,:,:,conn) + eps()) .* args.mask;
-        if isempty(args.mask)
-            % if no mask, try to correct for div0 issues
-            tscore(im(:,:,:,1) < min(im(:,:,:,1),[],'all') + ...
-                std(im(:,:,:,1),[],'all')) = 0;
+        if ~isempty(args.mask)
+            tscore(args.mask < args.tol) = 0;
+        else
+            tscore(im(:,:,:,1) < args.tol) = 0;
         end
     end
     

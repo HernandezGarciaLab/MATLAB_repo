@@ -123,7 +123,8 @@ function im_lb = lbview(im, varargin)
             if slicen <=  size(im,3)
                 im_lb_row = [im_lb_row, im(:,:,slicen)'];
             else
-                im_lb_row = [im_lb_row, NaN(size(im,1),size(im,2))];
+                im_lb_row = [im_lb_row, ...
+                    min(im(:))*ones(size(im,1),size(im,2))];
             end
         end
         im_lb = [im_lb; im_lb_row];

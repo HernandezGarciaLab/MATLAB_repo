@@ -90,7 +90,7 @@ rewritenii(im_name); % rewrite nii file to maintain consistent header fmt
 % (this section is NOT skippable)
 
 % **** SET PARAMETERS ****
-stim_tstart = -18;
+stim_tstart = -9;
 stim_toff = 30;
 stim_ton = 30;
 % ************************
@@ -112,7 +112,7 @@ compcor_N = 20; % number of noise principal components to generate
 
 % Perform operations
 A_noise = compcor(im_name,'stdthresh',compcor_stdthresh,'N',compcor_N,...
-    'A',A,'show',1); % perform compcor
+    'A',A,'show',1,'mask',mask); % perform compcor
 A = [A, A_noise]; % add A_noise into design matrix
 C = [C,zeros(2,size(A_noise,2))]; % append contrast matrix
 

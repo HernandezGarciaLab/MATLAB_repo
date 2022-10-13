@@ -67,6 +67,10 @@ function [A_noise,im_clean] = compcor(im,varargin)
 %       - double/float array of size 1x3 describing FOV (cm)
 %       - not necessary if reading timeseries from file
 %       - must specify (no default) if im is passed as image array
+%   - 'tol'
+%       - image zero detection tolerance
+%       - double/float scalar value describing 0 value roundoff
+%       - default is 1e-3
 %   - 'scaleoutput'
 %       - option to scale nii files to full dynamic range
 %       - boolean integer (0 or 1) to use or not
@@ -89,6 +93,7 @@ function [A_noise,im_clean] = compcor(im,varargin)
         'stdthresh',    0.9, ... % std threshold for noise ROI
         'N',            10, ... % Number of components to analyze
         'mask',         [], ... % Mask image
+        'tol',          1e-3, ... % Zero value tolerance        
         'A',            [], ... % Design matrix for fmri experiment
         'show',         0,  ... % Option to show figures
         'tr',           [], ... % TR (ms) (if im is not read from file)
@@ -123,23 +128,29 @@ function [A_noise,im_clean] = compcor(im,varargin)
     dim = [size(im,1),size(im,2),size(im,3)];
     nframes = size(im,4);
     
-    % Mask image
+    % Get mask
     if ischar(args.mask) % if mask points to a file name
         args.mask = readnii(args.mask);
-    elseif ~isequal(size(args.mask),dim) % check dimensions
-        warning('Mask size does not match image size, proceeding with full mask');
-        args.mask = ones(dim);
-    elseif isempty(args.mask)
-        args.mask = ones(dim);
     end
-    im = args.mask.*im;
+    
+    % Check dimensions of mask
+    if ~isempty(args.mask) && ~isequal(size(args.mask),dim)
+        warning('Mask size does not match image size, proceeding without mask');
+        args.mask = [];
+    end
     
     % Determine im with noisy ROI masked
     tstd = std(im,[],4); % temporal standard deviation
-    im_noise = im .* (tstd >= args.stdthresh * max(tstd(:)));
+    [~,p] = sort(tstd(:)); % sort the std and store indicies
+    if ~isempty(args.mask)
+        p(args.mask(p) < args.tol) = []; % ignore inidices outside mask
+    else
+        p(tstd(p) < args.tol) = []; % ignore indicies where std = 0
+    end
+    im_noise = im .* (tstd >= tstd(p(round(args.stdthresh*length(p)))));
     
     % Decompose and store singular values of noise
-    [~,s,v] = svd(reshape(im_noise,prod(dim),nframes),0);
+    [~,~,v] = svd(reshape(im_noise,prod(dim),nframes),0);
     A_noise = v(:,1:args.N) - mean(v(:,1:args.N),1);
     
     % Remove correlated regressors if design matrix is passed
@@ -154,20 +165,6 @@ function [A_noise,im_clean] = compcor(im,varargin)
     beta_noise = pinv(A_noise) * reshape(permute(im,[4 1:3]),[],prod(dim));
     im_clean = im - ...
         permute(reshape(A_noise*beta_noise, [nframes,dim]),[2:4,1]);
-    
-    % Show figures
-    if args.show
-        % Noise map
-        cfigopen('CompCor Noise Map');
-        subplot(1,2,1)
-        lbview(tstd)
-        title('Temporal standard deviation');
-        subplot(1,2,2)
-        lbview(im_noise)
-        title(sprintf('%s percentile',iptnum2ordinal(100*args.stdthresh)));
-        
-        
-    end
     
     % Save data to files
     if nargout < 2
