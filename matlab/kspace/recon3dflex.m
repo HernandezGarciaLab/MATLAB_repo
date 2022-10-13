@@ -67,6 +67,10 @@ function im = recon3dflex(varargin)
 %       - integer array containing specific frames to recon
 %       - if 'all' is passed, all frames will be reconned
 %       - default is 'all'
+%   - 'clipechoes'
+%       - number of echoes (slices) to remove from echo train
+%       - integer describing number of echoes
+%       - default is 0
 %   - 'resfactor'
 %       - resolution (dimension) upsampling factor
 %       - float/double describing factor
@@ -140,6 +144,7 @@ function im = recon3dflex(varargin)
         'tol',          1e-5, ... % Kspace distance tolerance
         'itrmax',       15, ... % Max number of iterations for IR
         'frames',       'all', ... % Frames to recon
+        'clipechoes',   0, ... % Number of echoes to remove
         'resfactor',    1, ... % Resolution upsampling factor
         'zoomfactor',   1, ... % FOV zoom factor
         'smap',         'estimate', ... % Sensitivity map for coil combination
@@ -210,6 +215,11 @@ function im = recon3dflex(varargin)
             ks(:,:,leafn,slicen) = (T*ks_0')';
         end
     end
+    
+    % Clip echoes from end of echo train if specified
+    info.nslices = info.nslices - args.clipechoes;
+    raw = raw(:,:,:,1:info.nslices,:);
+    ks = ks(:,:,:,1:info.nslices);
     
 %% Apply corrections/filters
     % Perform phase detrending
@@ -356,6 +366,73 @@ function im = recon3dflex(varargin)
     t = toc(t);
     fprintf('\nRecon complete. Total elapsed time: %.2fs\n',t);
     
+end
+
+%% readpfile function definition
+function [raw,info] = readpfile(searchstr)
+
+    % Set default for search string
+    if nargin < 1 || isempty(searchstr)
+        searchstr = 'P*.7';
+    end
+
+    % Find Pfile based on search string
+    dirp = dir(searchstr);
+    if size(dirp,1) > 1
+        fprintf('\nMultiple Pfiles found for search string %s:',searchstr);
+        for i = 1:size(dirp,1)
+            fprintf('\n\t%s',dirp(i).name);
+        end
+        fprintf('\n--> Only continuing with first Pfile...');
+    elseif size(dirp,1) < 1
+        error('No Pfiles found for search string %s:',searchstr);
+    end
+    pfile_name = dirp(1).name;
+    fprintf('\nReading Pfile: %s', pfile_name);
+    
+    % Read header using GE wrapper
+    h = ge_pfilehdr(pfile_name);
+    
+    % Create info struct based on header info
+    info = struct(...
+        'ndat',     h.rdb.da_xres, ... % Number of points / echo
+        'nleaves',  h.image.user0, ... % Number of interleaves
+        'nframes',  h.image.user1, ... % Number of temporal frames
+        'nslices',  h.image.slquant, ... % Number of slices
+        'ncoils',   h.rdb.dab(2) - h.rdb.dab(1) + 1, ... % Number of coils
+        'tr',       h.image.tr*1e-3, ... % TR (ms)
+        'te',       h.image.te, ... % TE (usec)
+        'dim',      h.image.dim_X, ... % Image x/y dimension
+        'fov',      h.image.dfov/10, ... % FOV (cm)
+        'slthick',  h.image.slthick/10 ... % Slice Thickness (cm)
+        );
+    
+    % Open pfile
+    [pfile,msg_fopen] = fopen(pfile_name,'r','ieee-le');
+    if ~isempty(msg_fopen), error(msg_fopen); end
+    if fseek(pfile, h.rdb.off_data, 'bof'), error('BOF not found\n'); end
+
+    % Read in data
+    raw = zeros(info.nframes,info.ndat,info.nleaves,info.nslices,info.ncoils);
+    for coiln = 1:info.ncoils
+        for slicen = 1:info.nslices
+            % Read in baseline
+            fread(pfile, 2*info.ndat, 'short');
+
+            % Read in data
+            dat = fread(pfile, [2*info.ndat info.nframes*info.nleaves], 'short');
+            dat = reshape(dat(1:2:end,:) + 1i * dat(2:2:end,:), ...
+                info.ndat, info.nleaves, info.nframes);
+
+            % Store in raw
+            raw(:,:,:,slicen,coiln) = permute(dat,[3 1 2]);
+
+        end
+    end
+    
+    % Close pfile
+    fclose(pfile);
+
 end
 
 %% phasedetrend function definition

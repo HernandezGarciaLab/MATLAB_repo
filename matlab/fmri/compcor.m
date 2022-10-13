@@ -128,7 +128,7 @@ function [A_noise,im_clean] = compcor(im,varargin)
     dim = [size(im,1),size(im,2),size(im,3)];
     nframes = size(im,4);
     
-    % Get mask
+    % If mask is a nii file name, read in from file
     if ischar(args.mask) % if mask points to a file name
         args.mask = readnii(args.mask);
     end
@@ -139,11 +139,15 @@ function [A_noise,im_clean] = compcor(im,varargin)
         args.mask = [];
     end
     
+    % Normalize and round mask
+    mask = (mask - min(mask(:))) / (max(mask(:)) - min(mask(:)));
+    mask = round(mask);
+    
     % Determine im with noisy ROI masked
     tstd = std(im,[],4); % temporal standard deviation
     [~,p] = sort(tstd(:)); % sort the std and store indicies
     if ~isempty(args.mask)
-        p(args.mask(p) < args.tol) = []; % ignore inidices outside mask
+        p(args.mask(p) == 0) = []; % ignore inidices outside mask
     else
         p(tstd(p) < args.tol) = []; % ignore indicies where std = 0
     end

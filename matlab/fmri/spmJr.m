@@ -118,7 +118,7 @@ function zscore = spmJr(im,A,varargin)
         args.C = eye(ncon);
     end
     
-    % Get mask
+    % If mask is a nii file name, read in from file
     if ischar(args.mask) % if mask points to a file name
         args.mask = readnii(args.mask);
     end
@@ -128,6 +128,10 @@ function zscore = spmJr(im,A,varargin)
         warning('Mask size does not match image size, proceeding without mask');
         args.mask = [];
     end
+    
+    % Normalize and round mask
+    mask = (mask - min(mask(:))) / (max(mask(:)) - min(mask(:)));
+    mask = round(mask);
     
     % Estimate beta & residual map by using ordinary least squares
     beta = pinv(A) * reshape(permute(im,[4 1:3]),[],prod(dim));
@@ -148,7 +152,7 @@ function zscore = spmJr(im,A,varargin)
         tscore(:,:,:,conn) = ...
             beta(:,:,:,conn) ./ sqrt(variance(:,:,:,conn) + eps()) .* args.mask;
         if ~isempty(args.mask)
-            tscore(args.mask < args.tol) = 0;
+            tscore(args.mask == 0) = 0;
         else
             tscore(im(:,:,:,1) < args.tol) = 0;
         end

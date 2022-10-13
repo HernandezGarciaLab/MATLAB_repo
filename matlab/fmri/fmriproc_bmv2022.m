@@ -39,21 +39,6 @@ subplot(3,2,1), lbview(im_name); title('Timeseries image');
 subplot(3,2,2), lbview('mask'); title('Mask');
 subplot(3,2,3:6), lbview(readnii(im_name).*readnii('mask')); title('Masked image');
 
-%% Apply mask
-% (this section is skippable if you don't want to mask, but requires a mask
-%   to run)
-
-% **** SET PARAMETERS ****
-mask_name = 'mask.nii'; % mask image name
-% ************************
-
-% Perform operations
-mask = readnii(mask_name); % read mask image
-im = readnii(im_name); % read in timeseries image
-im_masked = mask.*im; % apply mask
-im_name = ['m' im_name]; % set im name to new masked image
-writenii(im_name, im_masked, fov, tr, 1); % write new masked image to file
-
 %% Perform ASL subtraction
 % (this section is skippable if timeseries is already a subtraction
 %   timeseries)
@@ -112,7 +97,7 @@ compcor_N = 20; % number of noise principal components to generate
 
 % Perform operations
 A_noise = compcor(im_name,'stdthresh',compcor_stdthresh,'N',compcor_N,...
-    'A',A,'show',1,'mask',mask); % perform compcor
+    'A',A,'show',1,'mask',mask_name); % perform compcor
 A = [A, A_noise]; % add A_noise into design matrix
 C = [C,zeros(2,size(A_noise,2))]; % append contrast matrix
 
