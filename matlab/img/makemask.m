@@ -103,7 +103,7 @@ function mask = makemask(im,varargin)
     
     % Loop through slices along each dimension
     mask = ones(size(im));
-    for slicex = 1:h.dim(2)
+    for slicex = 1:size(im,1)
         imsl = im_smooth(slicex,:,:);
         % Remove pixels with intensity less than threshold
         mask(slicex,:,:) = ...
@@ -112,14 +112,14 @@ function mask = makemask(im,varargin)
         mask(slicex,:,:) = imfill(squeeze(mask(slicex,:,:)),'holes');
     end
     % Repeat for y
-    for slicey = 1:h.dim(3)
+    for slicey = 1:size(im,2)
         imsl = im_smooth(:,slicey,:).*mask(:,slicey,:);
         mask(:,slicey,:) = ...
             (imsl > mean(imsl,'all') + args.thresh*std(imsl,[],'all'));
         mask(:,slicey,:) = imfill(squeeze(mask(:,slicey,:)),'holes');
     end
     % Repeat for z
-    for slicez = 1:h.dim(4)
+    for slicez = 1:size(im,3)
         imsl = im_smooth(:,:,slicez).*mask(:,:,slicez);
         mask(:,:,slicez) = ...
             (imsl > mean(imsl,'all') + args.thresh*std(imsl,[],'all'));

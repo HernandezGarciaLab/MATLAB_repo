@@ -26,12 +26,13 @@ rewritenii(im_name); % rewrite nii file to maintain consistent header fmt
 
 % **** SET PARAMETERS ****
 mask_im = '../human_SOS_cbf_4shot_itr1/timeseries_mag.nii'; % name of img to use for mask generation
-mask_thresh = 0.5; % intensity threshold for masking
-mask_fwhm = 0.15; % fwhm for gaussian smoothing kernel (as fraction of fov)
+mask_thresh = 0.55; % intensity threshold for masking
+mask_fwhm = 0.1; % fwhm for gaussian smoothing kernel (as fraction of fov)
 % ************************
 
 % Perform operations
 makemask(mask_im,'fwhm',mask_fwhm,'thresh',mask_thresh) % make mask
+mask_name = 'mask.nii';
 
 % Generate figure:
 cfigopen('Mask image');
@@ -44,7 +45,7 @@ subplot(3,2,3:6), lbview(readnii(im_name).*readnii('mask')); title('Masked image
 %   timeseries)
 
 % **** SET PARAMETERS ****
-sub_order = 0; % order of asl subtraction
+sub_order = 1; % order of asl subtraction
 sub_sur = 1; % option to subtract using 'sur' algorithm (preserves temporal res)
 sub_fstart = 5; % first frame to use in subtraction
 sub_fend = nframes; % last frame to use in subtraction
@@ -75,14 +76,14 @@ rewritenii(im_name); % rewrite nii file to maintain consistent header fmt
 % (this section is NOT skippable)
 
 % **** SET PARAMETERS ****
-stim_tstart = -9;
+stim_tstart = -18;
 stim_toff = 30;
 stim_ton = 30;
 % ************************
 
 % Perform operations
 [x,x_hires] = blockstim(nframes,stim_tstart,stim_toff,stim_ton,...
-    tr*1e-3,1); % create activation regressor
+    tr*1e-3,0); % create activation regressor
 baseline = ones(nframes,1); % create baseline regressor
 A = [baseline,x]; % make design matrix
 C = eye(2); % make contrast matrix

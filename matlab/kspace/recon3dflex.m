@@ -387,8 +387,8 @@ function [raw,info] = readpfile(searchstr)
     elseif size(dirp,1) < 1
         error('No Pfiles found for search string %s:',searchstr);
     end
-    pfile_name = dirp(1).name;
-    fprintf('\nReading Pfile: %s', pfile_name);
+    pfile_name = [dirp(1).folder '/' dirp(1).name];
+    fprintf('\nReading Pfile: %s', dirp(1).name);
     
     % Read header using GE wrapper
     h = ge_pfilehdr(pfile_name);
