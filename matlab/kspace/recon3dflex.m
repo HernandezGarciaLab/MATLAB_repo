@@ -115,6 +115,11 @@ function im = recon3dflex(varargin)
 %       - integer describing highest order of polynomial for lsq fit
 %       - if -1 is passed, no phase detrending will be done
 %       - default is -1
+%   - 't2weight'
+%       - weighting for T2 decay compensation
+%       - float/double between 0 and 1 describing weight
+%       - 0 is no t2 decay compensation
+%       - default is 0
 %   - 'nworkers'
 %       - number of workers to use in parallel pool
 %       - integer describing number of workers
@@ -152,6 +157,7 @@ function im = recon3dflex(varargin)
         'ndel',         0, ... % Gradient sample delay
         'nramp',        [], ... % Number of ramp points in spiral traj
         'pdorder',      -1, ... % Order of phase detrending poly fit
+        't2weight',     0, ... % Weighting of T2 decay compensation
         'nworkers',     feature('numcores'), ... % Number of workers to use in parpool
         'scaleoutput',  1 ... % Option to scale output to full dynamic range
         );
@@ -225,6 +231,11 @@ function im = recon3dflex(varargin)
     % Perform phase detrending
     if args.pdorder > -1
         raw = phasedetrend(raw,navpts,args.pdorder);
+    end
+    
+    % Perform t2 compensation
+    if args.t2weight > 0
+        raw = t2comp(raw,navpts,args.t2weight,info.te);
     end
     
     % Correct for gradient sample delay
@@ -469,6 +480,74 @@ function raw_corr = phasedetrend(raw,navpts,pdorder)
     
     % Correct echo by subtracting out fits from phase
     raw_corr = raw.*exp(-1i*fits);
+
+end
+
+%% t2comp function definition
+function raw_corr = t2comp(raw,navpts,t2weight,te)
+
+    % Get dimensions
+    nframes = size(raw,1);
+    ndat = size(raw,2);
+    ndat_all = round(te/4);
+    nleaves = size(raw,3);
+    nslices = size(raw,4);
+    ncoils = size(raw,5);
+    
+    % Initialize corrected raw
+    raw_corr = zeros(size(raw));
+    
+    % Define design matrix for lsq poly fit
+    x = round((ndat_all - ndat)/2) + (navpts + ndat_all * (0:nslices-1));
+    A = x(:).^[1 0];
+    
+    % Initialize R2
+    R2 = zeros(nframes,nleaves,ncoils);
+    
+    % Loop through all echos
+    for framen = 1:nframes
+        for leafn = 1:nleaves
+            for coiln = 1:ncoils
+                
+                % Get current echo train with full echo time
+                echo = padarray(raw(framen,:,leafn,:,coiln), ...
+                    [0 round((ndat_all - ndat)/2) 0 0 0]);
+                echo = abs(reshape(echo,ndat_all*nslices,1));
+                
+                % Fit the decay using least squares
+                y = echo(x(:));
+                b = pinv(A) * log(y);
+                
+                % Save R2 values
+                R2(framen,leafn,coiln) = b(1);
+                
+            end
+        end
+    end
+    
+    % Get average R2 value
+    R2 = mean(R2(~isinf(R2(:))));
+    t2scale = reshape(exp(R2*mean(x,1)),1,1,1,nslices);
+    
+    % Loop through all echoes
+    for framen = 1:nframes
+        for leafn = 1:nleaves
+            for coiln = 1:ncoils
+                
+                % Get current echo train with full echo time
+                raw_corr(framen,:,leafn,:,coiln) = ...
+                    raw(framen,:,leafn,:,coiln) .* ...
+                    ((1 - t2weight) + t2weight./t2scale);
+                
+                % Correct for energy under curve
+                raw_corr(framen,:,leafn,:,coiln) = ...
+                    raw_corr(framen,:,leafn,:,coiln) * ...
+                    sum(raw(framen,:,leafn,:,coiln),'all') / ...
+                    sum(raw_corr(framen,:,leafn,:,coiln),'all');
+                
+            end
+        end
+    end
 
 end
 
