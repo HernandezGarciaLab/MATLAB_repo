@@ -158,7 +158,7 @@ function im = recon3dflex(varargin)
         'ndel',         0, ... % Gradient sample delay
         'nramp',        [], ... % Number of ramp points in spiral traj
         'pdorder',      -1, ... % Order of phase detrending poly fit
-        't2weight',     0, ... % Weighting of T2 decay compensation
+        't2comp',       0, ... % Option to perform t2 compensation
         'nworkers',     feature('numcores'), ... % Number of workers to use in parpool
         'scaleoutput',  1 ... % Option to scale output to full dynamic range
         );
@@ -226,29 +226,37 @@ function im = recon3dflex(varargin)
     % Clip echoes from end of echo train if specified
     raw = raw(:,:,:,1+args.clipechoes(1):info.nslices-args.clipechoes(2),:);
     ks = ks(:,:,:,1+args.clipechoes(1):info.nslices-args.clipechoes(2),:);
-    info.nslices = info.nslices - args.clipechoes;
+    info.nslices = info.nslices - sum(args.clipechoes);
     
+    % Make timing array
+    ti = info.dt*(0:info.ndat-1)' + round((info.te - info.dt*info.ndat)/2);
+    ti = repmat(ti,1,info.nleaves,info.nslices);
+    ti = ti + info.dt*info.ndat*permute(0:info.nslices-1,[1 3 2]);
+        
 %% Apply corrections/filters
     % Perform phase detrending
     if args.pdorder > -1
         raw = phasedetrend(raw,navpts,args.pdorder);
     end
     
-    % Perform t2 compensation
-    if args.t2weight > 0
-        raw = t2comp(raw,navpts,args.t2weight,info.te);
+    if args.t2comp
+        % Make t2map in kspace
+        R2 = fitt2(raw,navpts,info.te,info.dt);
+        R2 = R2/info.dt; % convert to 1/usec
     end
     
     % Correct for gradient sample delay
     if abs(args.ndel) > 0
-        raw = circshift(raw,args.ndel,2);
+        raw = circshift(raw,args.ndel,2);    
     end
     
     % Remove ramp points
     fprintf('\nRemoving %d ramp points from data...', args.nramp);
     ks([1:args.nramp info.ndat-args.nramp:info.ndat],:,:,:) = [];
     raw(:,[1:args.nramp info.ndat-args.nramp:info.ndat],:,:,:) = [];
-
+    ti([1:args.nramp info.ndat-args.nramp:info.ndat],:,:) = [];
+    info.ndat = info.ndat - 2*args.nramp;
+    
 %% Set up NUFFT
     % Extract dim and fov from info so info isn't broadcasted to parfor
     fov = info.fov*ones(1,3) / args.zoomfactor;
@@ -257,14 +265,11 @@ function im = recon3dflex(varargin)
         fov(3) = info.nslices*info.slthick / args.zoomfactor;
         dim(3) = info.nslices * args.resfactor;
     end
-
-    % Reshape and scale k from -pi to pi
-    omega = 2 * pi .* fov ./ dim .* ...
-        [reshape(ks(:,1,:,:),[],1), ...
+    
+    % Create Gmri object
+    kspace = [reshape(ks(:,1,:,:),[],1), ...
         reshape(ks(:,2,:,:),[],1), ...
         reshape(ks(:,3,:,:),[],1)];
-    
-    % Create NUFFT object
     nufft_args = {dim,...
         6*ones(1,3),...
         2*dim,...
@@ -272,14 +277,21 @@ function im = recon3dflex(varargin)
         'table',...
         2^10,...
         'minmax:kb'};
-    G = Gnufft(true(dim), [{omega}, nufft_args(:)']);
+    Gm = Gmri(kspace, true(dim), ...
+        'fov', fov, 'basis', {'rect'}, 'nufft', nufft_args(:)');
     
     % Create density compensation using pipe algorithm
-    dcf = pipedcf(G,args.itrmax);
+    dcf = pipedcf(Gm.Gnufft,args.itrmax);
+    
+    % Build t2 relaxation map into Gmri object
+    if args.t2comp
+        fprintf('\n');
+        Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2*ones(dim),1);
+    end
     
 %% Reconstruct image using NUFFT
     % Reconstruct point spread function
-    psf = 1/size(G,2) * reshape(G' * ones(numel(ks(:,1,:,:)),1), dim);
+    psf = reshape(Gm' * (dcf.*ones(numel(ks(:,1,:,:)),1)), dim);
     
     % Initialize output array and progress string
     im = zeros([dim,info.ncoils,length(args.frames)]);
@@ -300,7 +312,7 @@ function im = recon3dflex(varargin)
         parfor (coiln = 1:info.ncoils, args.nworkers)
             % Recon using adjoint NUFFT operation
             data = reshape(raw(framen,:,:,:,coiln),[],1);
-            im(:,:,:,coiln,framen) = 1/size(G,2) * reshape(G' * (dcf.*data), dim);
+            im(:,:,:,coiln,framen) = reshape(Gm' * (dcf.*data), dim);
         end
         
     end
@@ -414,6 +426,7 @@ function [raw,info] = readpfile(searchstr)
         'ncoils',   h.rdb.dab(2) - h.rdb.dab(1) + 1, ... % Number of coils
         'tr',       h.image.tr*1e-3, ... % TR (ms)
         'te',       h.image.te, ... % TE (usec)
+        'dt',       4, ... % Sampling period (usec)
         'dim',      h.image.dim_X, ... % Image x/y dimension
         'fov',      h.image.dfov/10, ... % FOV (cm)
         'slthick',  h.image.slthick/10 ... % Slice Thickness (cm)
@@ -485,18 +498,15 @@ function raw_corr = phasedetrend(raw,navpts,pdorder)
 end
 
 %% t2comp function definition
-function raw_corr = t2comp(raw,navpts,t2weight,te)
+function R2 = fitt2(raw,navpts,te,dt)
 
     % Get dimensions
     nframes = size(raw,1);
     ndat = size(raw,2);
-    ndat_all = round(te/4);
+    ndat_all = round(te/dt);
     nleaves = size(raw,3);
     nslices = size(raw,4);
     ncoils = size(raw,5);
-    
-    % Initialize corrected raw
-    raw_corr = zeros(size(raw));
     
     % Define design matrix for lsq poly fit
     x = round((ndat_all - ndat)/2) + (navpts + ndat_all * (0:nslices-1));
@@ -512,7 +522,9 @@ function raw_corr = t2comp(raw,navpts,t2weight,te)
                 
                 % Get current echo train with full echo time
                 echo = padarray(raw(framen,:,leafn,:,coiln), ...
-                    [0 round((ndat_all - ndat)/2) 0 0 0]);
+                    [0 floor((ndat_all - ndat)/2) 0 0 0],'pre');
+                echo = padarray(echo, ...
+                    [0 ceil((ndat_all - ndat)/2) 0 0 0],'post');
                 echo = abs(reshape(echo,ndat_all*nslices,1));
                 
                 % Fit the decay using least squares
@@ -528,27 +540,6 @@ function raw_corr = t2comp(raw,navpts,t2weight,te)
     
     % Get average R2 value
     R2 = mean(R2(~isinf(R2(:))));
-    t2scale = reshape(exp(R2*mean(x,1)),1,1,1,nslices);
-    
-    % Loop through all echoes
-    for framen = 1:nframes
-        for leafn = 1:nleaves
-            for coiln = 1:ncoils
-                
-                % Get current echo train with full echo time
-                raw_corr(framen,:,leafn,:,coiln) = ...
-                    raw(framen,:,leafn,:,coiln) .* ...
-                    ((1 - t2weight) + t2weight./t2scale);
-                
-                % Correct for energy under curve
-                raw_corr(framen,:,leafn,:,coiln) = ...
-                    raw_corr(framen,:,leafn,:,coiln) * ...
-                    sum(raw(framen,:,leafn,:,coiln),'all') / ...
-                    sum(raw_corr(framen,:,leafn,:,coiln),'all');
-                
-            end
-        end
-    end
 
 end
 
@@ -577,7 +568,7 @@ function Wi = pipedcf(G,itrmax)
         
     end
     
-    % Scale weights from 0 - 1
-    Wi = (Wi - min(Wi(:))) / (max(Wi(:)) - min(Wi(:)));
+    % Normalize
+    Wi = Wi / sum(abs(Wi));
     
 end
