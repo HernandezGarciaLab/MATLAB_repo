@@ -14,7 +14,7 @@ function [A_noise,im_clean] = compcor(im,varargin)
 %       space and prevent overwriting, and vice verse for when output is
 %       not returned (see 'im_clean' under 'Function output')
 %   - default values in help message may not be up to date - check defaults
-%       structure under the function header
+%       structure under the function headerr
 %
 % Path dependencies:
 %   - matlab default path
@@ -174,7 +174,8 @@ function [A_noise,im_clean] = compcor(im,varargin)
     % Save data to files
     if nargout < 2
         % Save cleaned image      
-        writenii('./compcorclean.nii',im_clean,args.fov,args.tr,args.scaleoutput);
+        writenii('./compcorclean.nii',im_clean, ...
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
         fprintf('\nCleaned timeseries image saved to compcorclean.nii');
     else
         fprintf('\nImages will not be saved to file since sub image is returned');

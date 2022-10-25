@@ -50,7 +50,7 @@ function rewritenii(niiread_name,niiwrite_name)
     tr = h.pixdim(5); % in ms
     
     % Write out output file
-    writenii(niiwrite_name,im,fov,tr,1);
+    writenii(niiwrite_name,im,'fov',fov,'tr',tr,'doscl',1);
     
 end
 

@@ -165,23 +165,28 @@ function zscore = spmJr(im,A,varargin)
     % Save data to files
     if nargout < 1
         % Save beta map   
-        writenii('./beta.nii',beta,args.fov,1,args.scaleoutput);
+        writenii('./beta.nii',beta, ...
+            'fov', args.fov, 'tr', 1, 'doscl', args.scaleoutput);
         fprintf('\nBeta estimate map saved to beta.nii');
         
         % Save tscore map     
-        writenii('./tscore.nii',tscore,args.fov,1,args.scaleoutput);
+        writenii('./tscore.nii',tscore, ...
+            'fov', args.fov, 'tr', 1, 'doscl', args.scaleoutput);
         fprintf('\ntscore map saved to tscore.nii');
         
         % Save zscore map      
-        writenii('./zscore.nii',zscore,args.fov,1,args.scaleoutput);
+        writenii('./zscore.nii',zscore, ...
+            'fov', args.fov, 'tr', 1, 'doscl', args.scaleoutput);
         fprintf('\nzscore map saved to zscore.nii');
         
         % Save contrast variance map    
-        writenii('./variance.nii',variance,args.fov,1,args.scaleoutput);
+        writenii('./variance.nii',variance, ...
+            'fov', args.fov, 'tr', 1, 'doscl', args.scaleoutput);
         fprintf('\nTemporal contrast variance map saved to variance.nii');
         
         % Save residual map   
-        writenii('./residual.nii',residual,args.fov,1,args.scaleoutput);
+        writenii('./residual.nii',residual, ...
+            'fov', args.fov, 'tr', 1, 'doscl', args.scaleoutput);
         fprintf('\nEstimate residual map saved to residual.nii');
         
         % Clear zscore so it won't be returned as ans

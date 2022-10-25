@@ -1,5 +1,5 @@
-function writenii(niifile_name,im,fov,tr,doscl)
-% function writenii(niifile_name,im,fov,tr,doscl)
+function writenii(niifile_name,im,varargin)
+% function writenii(niifile_name,im,varargin)
 %
 % Part of umasl project by Luis Hernandez-Garcia and David Frey
 % @ University of Michigan 2022
@@ -8,7 +8,8 @@ function writenii(niifile_name,im,fov,tr,doscl)
 %
 %
 % Notes:
-%   - no defaults on input arguments, all arguments are required
+%   - if header is passed, fov and tr do not need to be passed; otherwise
+%       they are required
 %
 % Dependencies:
 %   - matlab default path
@@ -28,22 +29,41 @@ function writenii(niifile_name,im,fov,tr,doscl)
 %       - image array
 %       - Nd array with image data
 %       - no default, necessary argument
-%   - fov:
+%
+% Variable input arguments (type 'help varargin' for usage info):
+%   - 'h':
+%       - manual nifti image header
+%       - nifti header structure as made with makeniihdr()
+%       - if header is passed with other variable inputs, variable inputs
+%           will override specified values in header
+%       - no default, must either pass fov and tr or h
+%   - 'fov':
 %       - image field of view
 %       - array of 1ximage size describing image fov (standard: cm)
-%       - no default, necessary argument
-%   - tr:
+%       - no default, must either pass fov and tr or h
+%   - 'tr':
 %       - temporal frame repetition time
 %       - double/float describing tr (standard: ms)
-%       - no default, necessary argument
-%   - doscl:
+%       - no default, must either pass fov and tr or h
+%   - 'doscl':
 %       - option to scale output to full dynamic range in save file
 %       - boolean integer (0 or 1) describing whether or not to use
 %       - operation makes use of scl_* nifti header fields, which is not
 %           supported by some outside functions (all umasl functions
 %           support this)
-%       - no default, necessary argument
+%       - default is 1
 %
+
+    % Define default arguments
+    defaults = struct(...
+        'h',        [], ... % Raw data
+        'fov',      [], ... % Info structure
+        'tr',       [], ... % Search string for Pfile
+        'doscl',    1 ... % Kspace distance tolerance
+        );
+    
+    % Parse through variable inputs using matlab's built-in input parser
+    args = vararginparser(defaults,varargin{:});
 
     % Add .nii extension if user left it out
     if ~contains(niifile_name,'.nii')
@@ -53,33 +73,47 @@ function writenii(niifile_name,im,fov,tr,doscl)
     % Open nifti file for writing
     [niifile,msg_fopen] = fopen(niifile_name,'wb','ieee-le');
     if ~isempty(msg_fopen), error(msg_fopen); end
-
-    % Determine scaling factors for saving full dynamic range
-    if doscl
-        DACFactor = 2^15-1;
-        y = im;
-        y_min = min(y,[],'all'); y_max = max(y,[],'all');
-        m = 2*DACFactor/(y_max - y_min);
-        x = m*y - (m*y_min + DACFactor);
-        scl_inter = (m*y_min + DACFactor)/m;
-        scl_slope = 1/m;
-        im = x;
-    else
-        scl_inter = 0;
-        scl_slope = 1;
-    end
     
     % Get dim
     dim = [size(im,1),size(im,2),size(im,3)];
     
     % Define header
-    h = makeniihdr(...
-        'dim',          [4, dim, size(im,4), 0, 0, 0], ...
-        'pixdim',       [4, fov./dim, tr, 0, 0, 0], ...
-        'datatype',     4, ...
-        'bitpix',       16, ...
-        'scl_inter',    scl_inter, ...
-        'scl_slope',    scl_slope);
+    if isempty(args.h) && (isempty(args.fov) || isempty(args.tr))
+        error('must specify either header or fov & tr');
+    elseif isempty(args.h)
+        h = makeniihdr('datatype', 4, 'bitpix', 16);
+    elseif ~isequal(args.h.dim(2:5), size(im))
+        error('header dimensions do not match array size');
+    else
+        h = args.h;
+    end
+    
+    % Set fov if passed
+    if ~isempty(args.fov)
+        h.dim(2:4) = dim;
+        h.pixdim(2:4) = args.fov./dim;
+    end
+    
+    % Set tr if passed
+    if ~isempty(args.tr)
+        h.dim(5) = size(im,4);
+        h.pixdim(5) = args.tr;
+    end
+
+    % Determine scaling factors for saving full dynamic range
+    if args.doscl
+        DACFactor = 2^15-1;
+        y = im;
+        y_min = min(y,[],'all'); y_max = max(y,[],'all');
+        m = 2*DACFactor/(y_max - y_min);
+        x = m*y - (m*y_min + DACFactor);
+        h.scl_inter = (m*y_min + DACFactor)/m;
+        h.scl_slope = 1/m;
+        im = x;
+    else
+        h.scl_inter = 0;
+        h.scl_slope = 1;
+    end
     
     % Write header info
     fwrite(niifile, h.sizeof_hdr,       'int32');

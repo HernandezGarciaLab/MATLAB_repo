@@ -69,8 +69,9 @@ function im = recon3dflex(varargin)
 %       - default is 'all'
 %   - 'clipechoes'
 %       - number of echoes (slices) to remove from echo train
-%       - integer describing number of echoes
-%       - default is 0
+%       - 1 x 2 integer array describing number of echoes to clip from
+%           start and beginning
+%       - default is [0 0]
 %   - 'resfactor'
 %       - resolution (dimension) upsampling factor
 %       - float/double describing factor
@@ -149,7 +150,7 @@ function im = recon3dflex(varargin)
         'tol',          1e-5, ... % Kspace distance tolerance
         'itrmax',       15, ... % Max number of iterations for IR
         'frames',       'all', ... % Frames to recon
-        'clipechoes',   0, ... % Number of echoes to remove
+        'clipechoes',   [0 0], ... % Number of echoes to remove
         'resfactor',    1, ... % Resolution upsampling factor
         'zoomfactor',   1, ... % FOV zoom factor
         'smap',         'estimate', ... % Sensitivity map for coil combination
@@ -223,9 +224,9 @@ function im = recon3dflex(varargin)
     end
     
     % Clip echoes from end of echo train if specified
+    raw = raw(:,:,:,1+args.clipechoes(1):info.nslices-args.clipechoes(2),:);
+    ks = ks(:,:,:,1+args.clipechoes(1):info.nslices-args.clipechoes(2),:);
     info.nslices = info.nslices - args.clipechoes;
-    raw = raw(:,:,:,1:info.nslices,:);
-    ks = ks(:,:,:,1:info.nslices);
     
 %% Apply corrections/filters
     % Perform phase detrending
@@ -340,21 +341,21 @@ function im = recon3dflex(varargin)
         if info.ncoils > 1
             % Save coil-wise images to file for better smap construction
             writenii('./coils_mag.nii', squeeze(abs(imf1coils)), ...
-                fov, 1, args.scaleoutput);
+                'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
             writenii('./coils_ang.nii', squeeze(angle(imf1coils)), ...
-                fov, 1, args.scaleoutput);
+                'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
             fprintf('\nCoil images (frame 1) saved to coil_*.nii');
         end
         
         % Save timeseries
         writenii('./timeseries_mag.nii', abs(im), ...
-            fov, info.tr, args.scaleoutput);
+            'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
         fprintf('\nTimeseries saved to timeseries_mag.nii');
         
         if info.ncoils == 1 || ~isempty(args.smap)
             % Save timeseries phase
             writenii('./timeseries_ang.nii', angle(im), ...
-                fov, info.tr, args.scaleoutput);
+                'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
             fprintf('\nTimeseries phase saved to timeseries_ang.nii');
         else
             % Warn user of no timeseries phase being saved
@@ -364,7 +365,7 @@ function im = recon3dflex(varargin)
         
         % Save point spread function
         writenii('./psf.nii', abs(psf), ...
-            fov, 1, args.scaleoutput);
+            'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
         fprintf('\nPoint spread function saved to psf.nii');
         
         % Clear im so it won't be returned

@@ -161,7 +161,7 @@ function im_ortho = orthoview(im,varargin)
         caxis(args.caxis);
 
         % Clear im_ortho if not returned so it won't be printed to console
-        clear im_lb
+        clear im_ortho
     end
     
 end

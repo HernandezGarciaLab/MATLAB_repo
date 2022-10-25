@@ -142,7 +142,7 @@ function mask = makemask(im,varargin)
         
         % Save mask
         writenii('./mask.nii', 1.*mask, ...
-            args.fov, 1, 0);
+            'fov', args.fov, 'tr', 1, 'doscl', 0);
         fprintf('\nMask saved to mask.nii');
         
         % Clear im so it won't be returned

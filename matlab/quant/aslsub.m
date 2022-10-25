@@ -179,29 +179,38 @@ function im_sub = aslsub(im,varargin)
     if nargout < 1
         % Save subtraction timeseries/mean/std
         mean_sub = mean(im_sub,4); std_sub = std(im_sub,[],4);        
-        writenii('./sub.nii',im_sub,args.fov,args.tr,args.scaleoutput);
+        writenii('./sub.nii',im_sub, ...
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
         fprintf('\nSubtraction timeseries saved to sub.nii');
-        writenii('./mean_sub.nii',mean_sub,args.fov,args.tr,args.scaleoutput);
+        writenii('./mean_sub.nii',mean_sub, ...
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
         fprintf('\nTemporal mean subtraction saved to mean_sub.nii');
-        writenii('./std_sub.nii',std_sub,args.fov,args.tr,args.scaleoutput);
+        writenii('./std_sub.nii',std_sub, ...
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
         fprintf('\nTemporal standard deviation of subtraction saved to std_sub.nii');
         
         % Save tag timeseries/mean/std
         mean_tag = mean(im_tag,4); std_tag = std(im_tag,[],4);        
-        writenii('./tag.nii',im_tag,args.fov,args.tr,args.scaleoutput);
+        writenii('./tag.nii',im_tag, ...
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
         fprintf('\nTag timeseries saved to tag.nii');
-        writenii('./mean_tag.nii',mean_tag,args.fov,args.tr,args.scaleoutput);
+        writenii('./mean_tag.nii',mean_tag, ...
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
         fprintf('\nTemporal mean tag saved to mean_tag.nii');
-        writenii('./std_tag.nii',std_tag,args.fov,args.tr,args.scaleoutput);
+        writenii('./std_tag.nii',std_tag, ...
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
         fprintf('\nTemporal standard deviation of tag saved to std_tag.nii');
         
         % Save control timeseries/mean/std
         mean_con = mean(im_con,4); std_con = std(im_con,[],4);        
-        writenii('./con.nii',im_con,args.fov,args.tr,args.scaleoutput);
+        writenii('./con.nii',im_con, ...
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
         fprintf('\nControl timeseries saved to con.nii');
-        writenii('./mean_con.nii',mean_con,args.fov,args.tr,args.scaleoutput);
+        writenii('./mean_con.nii',mean_con, ...
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
         fprintf('\nTemporal mean control saved to mean_con.nii');
-        writenii('./std_con.nii',std_con,args.fov,args.tr,args.scaleoutput);
+        writenii('./std_con.nii',std_con, ...
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
         fprintf('\nTemporal standard deviation of control saved to std_con.nii');
         
         % Clear im_sub so it won't be returned as ans
