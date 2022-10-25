@@ -7,10 +7,6 @@ function writenii(niifile_name,im,varargin)
 % Description: Function to write nii image file from Nd image array
 %
 %
-% Notes:
-%   - if header is passed, fov and tr do not need to be passed; otherwise
-%       they are required
-%
 % Dependencies:
 %   - matlab default path
 %       - can be restored by typing 'restoredefaultpath'
@@ -36,15 +32,15 @@ function writenii(niifile_name,im,varargin)
 %       - nifti header structure as made with makeniihdr()
 %       - if header is passed with other variable inputs, variable inputs
 %           will override specified values in header
-%       - no default, must either pass fov and tr or h
+%       - default is empty
 %   - 'fov':
 %       - image field of view
 %       - array of 1ximage size describing image fov (standard: cm)
-%       - no default, must either pass fov and tr or h
+%       - default is [2 2 2]
 %   - 'tr':
 %       - temporal frame repetition time
 %       - double/float describing tr (standard: ms)
-%       - no default, must either pass fov and tr or h
+%       - default is 1
 %   - 'doscl':
 %       - option to scale output to full dynamic range in save file
 %       - boolean integer (0 or 1) describing whether or not to use
@@ -57,8 +53,8 @@ function writenii(niifile_name,im,varargin)
     % Define default arguments
     defaults = struct(...
         'h',        [], ... % Raw data
-        'fov',      [], ... % Info structure
-        'tr',       [], ... % Search string for Pfile
+        'fov',      [2 2 2], ... % Info structure
+        'tr',       1, ... % Search string for Pfile
         'doscl',    1 ... % Kspace distance tolerance
         );
     
@@ -74,13 +70,17 @@ function writenii(niifile_name,im,varargin)
     [niifile,msg_fopen] = fopen(niifile_name,'wb','ieee-le');
     if ~isempty(msg_fopen), error(msg_fopen); end
     
+    % Check for complex image
+    if iscomplex(im)
+        warning('Complex images are not supported, using absolute value');
+        im = abs(im);
+    end
+    
     % Get dim
     dim = [size(im,1),size(im,2),size(im,3)];
     
     % Define header
-    if isempty(args.h) && (isempty(args.fov) || isempty(args.tr))
-        error('must specify either header or fov & tr');
-    elseif isempty(args.h)
+    if isempty(args.h)
         h = makeniihdr('datatype', 4, 'bitpix', 16);
     elseif ~isequal(args.h.dim(2:5), size(im))
         error('header dimensions do not match array size');
