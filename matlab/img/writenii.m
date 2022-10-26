@@ -82,6 +82,8 @@ function writenii(niifile_name,im,varargin)
     % Define header
     if isempty(args.h)
         h = makeniihdr('datatype', 4, 'bitpix', 16);
+        h.dim(1) = ndims(im);
+        h.pixdim(1) = ndims(im);
     elseif ~isequal(args.h.dim(2:5), size(im))
         error('header dimensions do not match array size');
     else
