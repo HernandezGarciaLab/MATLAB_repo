@@ -1,10 +1,10 @@
 function mask = makemask(im,varargin)
-% function im_sub = aslsub(im,varargin)
+% function mask = makemask(im,varargin)
 %
 % Part of umasl project by Luis Hernandez-Garcia and David Frey
 % @ University of Michigan 2022
 %
-% Description: Function to perform ASL subtraction on timeseries images
+% Description: Function to create mask from image
 %
 %
 % Notes:
@@ -26,9 +26,10 @@ function mask = makemask(im,varargin)
 %
 % Static input arguments:
 %   - im:
-%       - timeseries image to perform subtraction on
+%       - image to make mask from
 %       - either a float/double 3D image array or name of a .nii file
-%       - if passing in a 3D image array, must also specify fov and TR
+%       - if passing in a 3D image array without a return val, must also
+%           specify fov so image can be saved to file
 %       - default is 'timeseries_mag'
 %
 % Variable input arguments (type 'help varargin' for usage info):
@@ -49,6 +50,10 @@ function mask = makemask(im,varargin)
 %       - threshold as a fraction of standard deviation above mean
 %       - double/float describing fraction of std to use for thresholding
 %       - default is 0.75
+%   - 'silent'
+%       - option for no fprint messages
+%       - boolean integer (0 or 1) describing whether or not to use
+%       - default is 0
 %
 % Function output:
 %   - mask
@@ -63,7 +68,8 @@ function mask = makemask(im,varargin)
         'fov',          [], ... % FOV (cm) (if im is not read from file)
         'frame',        1, ... % Frame to use if im is 4D
         'fwhm',         0.05, ... % FWHM of gaussian kernel as fraction of FOV
-        'thresh',       0.75 ... % Mask threshold as frac. of std
+        'thresh',       0.75, ... % Mask threshold as frac. of std
+        'silent',       0 ... % Option for no fprints
         );
     
     % Start timer
@@ -84,7 +90,7 @@ function mask = makemask(im,varargin)
     if ischar(im)
         [im,h] = readnii(im);
         args.fov = h.dim(2:4) .* h.pixdim(2:4);
-    elseif isempty(args.fov)
+    elseif isempty(args.fov) && nargout < 1
         error('Must specify fov if image is not read from file');
     end
 
@@ -94,12 +100,15 @@ function mask = makemask(im,varargin)
     end
     
     % Smooth image and read in smoothed image
-    fprintf('\nSmoothing with a FWHM of %.4f * FOV', args.fwhm);
-    im_smooth = zeros(size(im));
-    spm_smooth(im,im_smooth,args.fwhm*size(im),4);
+    if ~args.silent
+        fprintf('\nSmoothing with a FWHM of %.4f * FOV', args.fwhm);
+    end
+    im_smooth = smoothim(im,'fwhm',args.fwhm,'silent',1);
     
     % Begin masking
-    fprintf('\nMasking with a threshold of mean + %.4f * std', args.thresh);
+    if ~args.silent
+        fprintf('\nMasking with a threshold of mean + %.4f * std', args.thresh);
+    end
     
     % Loop through slices along each dimension
     mask = ones(size(im));
@@ -107,7 +116,7 @@ function mask = makemask(im,varargin)
         imsl = im_smooth(slicex,:,:);
         % Remove pixels with intensity less than threshold
         mask(slicex,:,:) = ...
-            (imsl > mean(imsl,'all') + args.thresh*std(imsl,[],'all'));
+            (imsl > mean(im,'all') + args.thresh*std(im,[],'all'));
         % Fill in holes
         mask(slicex,:,:) = imfill(squeeze(mask(slicex,:,:)),'holes');
     end
@@ -115,14 +124,14 @@ function mask = makemask(im,varargin)
     for slicey = 1:size(im,2)
         imsl = im_smooth(:,slicey,:).*mask(:,slicey,:);
         mask(:,slicey,:) = ...
-            (imsl > mean(imsl,'all') + args.thresh*std(imsl,[],'all'));
+            (imsl > mean(im,'all') + args.thresh*std(im,[],'all'));
         mask(:,slicey,:) = imfill(squeeze(mask(:,slicey,:)),'holes');
     end
     % Repeat for z
     for slicez = 1:size(im,3)
         imsl = im_smooth(:,:,slicez).*mask(:,:,slicez);
         mask(:,:,slicez) = ...
-            (imsl > mean(imsl,'all') + args.thresh*std(imsl,[],'all'));
+            (imsl > mean(im,'all') + args.thresh*std(im,[],'all'));
         mask(:,:,slicez) = imfill(squeeze(mask(:,:,slicez)),'holes');
     end
     
@@ -143,17 +152,23 @@ function mask = makemask(im,varargin)
         % Save mask
         writenii('./mask.nii', 1.*mask, ...
             'fov', args.fov, 'tr', 1, 'doscl', 0);
-        fprintf('\nMask saved to mask.nii');
+        if ~args.silent
+            fprintf('\nMask saved to mask.nii');
+        end
         
         % Clear im so it won't be returned
         clear mask;
     else
-        fprintf('\nMask will not be saved to file since it is returned');
+        if ~args.silent
+            fprintf('\nMask will not be saved to file since it is returned');
+        end
     end
     
     % Save and print elapsed time
     t = toc(t);
-    fprintf('\nMasking complete. Total elapsed time: %.2fs\n',t);
+    if ~args.silent
+        fprintf('\nMasking complete. Total elapsed time: %.2fs\n',t);
+    end
     
 end
 

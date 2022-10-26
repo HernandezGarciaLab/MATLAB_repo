@@ -25,7 +25,8 @@ function im_sub = aslsub(im,varargin)
 %   - im:
 %       - timeseries image to perform subtraction on
 %       - either a float/double 3D image array or name of a .nii file
-%       - if passing in a 3D image array, must also specify fov and TR
+%       - if passing in a 3D image array without a return val, must also
+%           specify fov and tr so image can be saved to file
 %       - default is 'timeseries_mag'
 %
 % Variable input arguments (type 'help varargin' for usage info):
@@ -112,7 +113,7 @@ function im_sub = aslsub(im,varargin)
         [im,h] = readnii(im);
         args.tr = h.pixdim(5);
         args.fov = h.dim(2:4) .* h.pixdim(2:4);
-    elseif (isempty(args.tr) || isempty(args.fov))
+    elseif (isempty(args.tr) || isempty(args.fov)) && nargout < 1
         error('Must specify tr and fov if image is not read from file');
     end
     

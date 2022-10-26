@@ -158,7 +158,8 @@ function im = recon3dflex(varargin)
         'ndel',         0, ... % Gradient sample delay
         'nramp',        [], ... % Number of ramp points in spiral traj
         'pdorder',      -1, ... % Order of phase detrending poly fit
-        't2comp',       0, ... % Option to perform t2 compensation
+        't2',           [], ... % Option to perform t2 compensation
+        'mask',         'full', ...
         'nworkers',     feature('numcores'), ... % Number of workers to use in parpool
         'scaleoutput',  1 ... % Option to scale output to full dynamic range
         );
@@ -239,10 +240,11 @@ function im = recon3dflex(varargin)
         raw = phasedetrend(raw,navpts,args.pdorder);
     end
     
-    if args.t2comp
+    if strcmpi(args.t2, 'fit')
         % Make t2map in kspace
-        R2 = fitt2(raw,navpts,info.te,info.dt);
-        R2 = R2/info.dt; % convert to 1/usec
+        args.t2 = fitt2(raw,navpts,info.te,info.dt);
+        args.t2 = args.t2 * info.dt * 1e-3;
+        fprintf('\nFitted T2 value: %.1fms', args.t2);
     end
     
     % Correct for gradient sample delay
@@ -267,6 +269,10 @@ function im = recon3dflex(varargin)
     end
     
     % Create Gmri object
+    if strcmpi(args.mask,'full')
+        args.mask = ones(dim);
+    end
+    nufftmask = (args.mask > 0);
     kspace = [reshape(ks(:,1,:,:),[],1), ...
         reshape(ks(:,2,:,:),[],1), ...
         reshape(ks(:,3,:,:),[],1)];
@@ -277,21 +283,23 @@ function im = recon3dflex(varargin)
         'table',...
         2^10,...
         'minmax:kb'};
-    Gm = Gmri(kspace, true(dim), ...
+    Gm = Gmri(kspace, nufftmask, ...
         'fov', fov, 'basis', {'rect'}, 'nufft', nufft_args(:)');
     
     % Create density compensation using pipe algorithm
     dcf = pipedcf(Gm.Gnufft,args.itrmax);
     
     % Build t2 relaxation map into Gmri object
-    if args.t2comp
+    if ~isempty(args.t2)
         fprintf('\n');
-        Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2*ones(dim),1);
+        R2 = 1/(args.t2*1e3); % convert to 1/usec
+        Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2*nufftmask,1);
     end
     
 %% Reconstruct image using NUFFT
     % Reconstruct point spread function
-    psf = reshape(Gm' * (dcf.*ones(numel(ks(:,1,:,:)),1)), dim);
+    psf = ones(dim);
+    psf(nufftmask) = Gm' * (dcf.*ones(numel(ks(:,1,:,:)),1));
     
     % Initialize output array and progress string
     im = zeros([dim,info.ncoils,length(args.frames)]);
@@ -312,7 +320,9 @@ function im = recon3dflex(varargin)
         parfor (coiln = 1:info.ncoils, args.nworkers)
             % Recon using adjoint NUFFT operation
             data = reshape(raw(framen,:,:,:,coiln),[],1);
-            im(:,:,:,coiln,framen) = reshape(Gm' * (dcf.*data), dim);
+            im_cur = zeros(dim);
+            im_cur(nufftmask) = Gm' * (dcf.*data);
+            im(:,:,:,coiln,framen) = im_cur;
         end
         
     end
@@ -327,9 +337,18 @@ function im = recon3dflex(varargin)
         
     elseif info.ncoils > 1 && strcmpi(args.smap,'estimate')
         % Combine coils using Ssos sensitivity map
-        fprintf('\nNo sensitivtiy map passed, estimating one using ssos...\n');
+        fprintf('\nNo sensitivity map passed, estimating one using ssos...\n');
         args.smap = mri_sensemap_denoise(squeeze(im(:,:,:,:,1)),...
             'niter',10,'thresh',0.05);
+        % Mask out the air regions of sensitivities
+        coilmask = zeros([dim,info.ncoils]);
+        for coiln = 1:info.ncoils
+            coilmask(:,:,:,coiln) = makemask(abs(args.smap(:,:,:,coiln)), ...
+                'silent', 1, 'fwhm', 0.1, 'thresh',0.99);
+        end
+        coilmask(coilmask == 0) = 0.1;
+        coilmask = smoothim(coilmask,'fwhm',0.1,'silent',1);
+        args.smap = args.smap .* coilmask;
         im = div0( sum( conj(args.smap) .* im, 4), ...
             sum( abs(args.smap).^2, 4) );
         
@@ -498,10 +517,9 @@ function raw_corr = phasedetrend(raw,navpts,pdorder)
 end
 
 %% t2comp function definition
-function R2 = fitt2(raw,navpts,te,dt)
+function t2 = fitt2(raw,navpts,te,dt)
 
     % Get dimensions
-    nframes = size(raw,1);
     ndat = size(raw,2);
     ndat_all = round(te/dt);
     nleaves = size(raw,3);
@@ -513,33 +531,31 @@ function R2 = fitt2(raw,navpts,te,dt)
     A = x(:).^[1 0];
     
     % Initialize R2
-    R2 = zeros(nframes,nleaves,ncoils);
+    t2 = zeros(nleaves,ncoils);
     
     % Loop through all echos
-    for framen = 1:nframes
-        for leafn = 1:nleaves
-            for coiln = 1:ncoils
-                
-                % Get current echo train with full echo time
-                echo = padarray(raw(framen,:,leafn,:,coiln), ...
-                    [0 floor((ndat_all - ndat)/2) 0 0 0],'pre');
-                echo = padarray(echo, ...
-                    [0 ceil((ndat_all - ndat)/2) 0 0 0],'post');
-                echo = abs(reshape(echo,ndat_all*nslices,1));
-                
-                % Fit the decay using least squares
-                y = echo(x(:));
-                b = pinv(A) * log(y);
-                
-                % Save R2 values
-                R2(framen,leafn,coiln) = b(1);
-                
-            end
+    for leafn = 1:nleaves
+        for coiln = 1:ncoils
+
+            % Get current echo train with full echo time
+            echo = padarray(raw(1,:,leafn,:,coiln), ...
+                [0 floor((ndat_all - ndat)/2) 0 0 0],'pre');
+            echo = padarray(echo, ...
+                [0 ceil((ndat_all - ndat)/2) 0 0 0],'post');
+            echo = abs(reshape(echo,ndat_all*nslices,1));
+
+            % Fit the decay using least squares
+            y = echo(x(:));
+            b = pinv(A) * log(y);
+
+            % Save R2 values
+            t2(leafn,coiln) = 1/abs(b(1));
+
         end
     end
     
     % Get average R2 value
-    R2 = mean(R2(~isinf(R2(:))));
+    t2 = mean(t2(~isinf(t2(:))));
 
 end
 
