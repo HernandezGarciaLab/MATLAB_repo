@@ -339,18 +339,16 @@ function im = recon3dflex(varargin)
         % Combine coils using Ssos sensitivity map
         fprintf('\nNo sensitivity map passed, estimating one using ssos...\n');
         args.smap = mri_sensemap_denoise(squeeze(im(:,:,:,:,1)),...
-            'niter',10,'thresh',0.05);
-        % Mask out the air regions of sensitivities
-        coilmask = zeros([dim,info.ncoils]);
+            'niter',10,'thresh',0.15);
+        smask = zeros(size(args.smap));
         for coiln = 1:info.ncoils
-            coilmask(:,:,:,coiln) = makemask(abs(args.smap(:,:,:,coiln)), ...
-                'silent', 1, 'fwhm', 0.1, 'thresh',0.99);
+            smask(:,:,:,coiln) = makemask(abs(args.smap(:,:,:,coiln)), ...
+                'fwhm', 0.1, 'thresh', 0.1, 'silent', 1);
         end
-        coilmask(coilmask == 0) = 0.1;
-        coilmask = smoothim(coilmask,'fwhm',0.1,'silent',1);
-        args.smap = args.smap .* coilmask;
-        im = div0( sum( conj(args.smap) .* im, 4), ...
-            sum( abs(args.smap).^2, 4) );
+        smask = smask .* makemask(sqrt(mean(abs(im(:,:,:,:,1)).^2,4)), ...
+            'fwhm', 0.1, 'thresh', 0.15, 'silent', 1);
+        im = div0( sum( conj(smask.*args.smap) .* im, 4), ...
+            sum( abs(smask.*args.smap).^2, 4) );
         
     elseif info.ncoils > 1 && ~isempty(args.smap)
         % Combine coils using passed in sensitivity map
@@ -502,7 +500,7 @@ function raw_corr = phasedetrend(raw,navpts,pdorder)
                 for coiln = 1:ncoils
                     % Fit polynomial to center phase of indexed echo
                     echo = raw(framen,:,leafn,slicen,coiln);
-                    y = unwrap(angle(echo(navpts)));
+                    y = angle(echo(navpts));
                     betas = pinv(A)*y(:);
                     fits(framen,:,leafn,slicen,coiln) = ...
                         (1:ndat)'.^(pdorder:-1:0) * betas;

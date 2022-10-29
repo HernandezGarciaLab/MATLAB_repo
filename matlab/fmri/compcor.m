@@ -120,7 +120,7 @@ function [A_noise,im_clean] = compcor(im,varargin)
         [im,h] = readnii(im);
         args.tr = h.pixdim(5);
         args.fov = h.dim(2:4) .* h.pixdim(2:4);
-    elseif (isempty(args.tr) || isempty(args.fov))
+    elseif (isempty(args.tr) || isempty(args.fov)) && nargout < 2
         error('Must specify tr and fov if image is not read from file');
     end
     
@@ -136,7 +136,7 @@ function [A_noise,im_clean] = compcor(im,varargin)
     % Check dimensions of mask
     if ~isempty(args.mask) && ~isequal(size(args.mask),dim)
         warning('Mask size does not match image size, proceeding without mask');
-        args.mask = [];
+        args.mask = ones(dim);
     end
     
     % Normalize and round mask
