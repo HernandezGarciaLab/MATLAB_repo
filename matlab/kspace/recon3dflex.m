@@ -450,7 +450,7 @@ function raw_corr = phasedetrend(raw,navpts,pdorder)
                     y = angle(echo(navpts));
                     betas = pinv(A)*y(:);
                     fits(framen,:,leafn,slicen,coiln) = ...
-                        (1:ndat - round(ndat/2))'.^(pdorder:-1:0) * betas;
+                        ((1:ndat) - round(ndat/2))'.^(pdorder:-1:0) * betas;
                 end
             end
         end
