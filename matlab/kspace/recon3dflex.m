@@ -88,8 +88,7 @@ function im = recon3dflex(varargin)
 %           sensitivity for each coil, or 'estimate'
 %       - if left empty, recon will use RMS method to combine coils and
 %           write 'coils_*.nii' images so user can make a smap for future
-%       - if 'estimate' is passed, recon will estimate sense map using SSoS
-%       - default is 'estimate'
+%       - default is empty
 %   - 'isovox'
 %       - option to use isotropic voxel sizes
 %       - boolean integer (0 or 1) describing whether or not voxels are
@@ -153,7 +152,7 @@ function im = recon3dflex(varargin)
         'clipechoes',   [0 0], ... % Number of echoes to remove
         'resfactor',    1, ... % Resolution upsampling factor
         'zoomfactor',   1, ... % FOV zoom factor
-        'smap',         'estimate', ... % Sensitivity map for coil combination
+        'smap',         [], ... % Sensitivity map for coil combination
         'isovox',       1, ... % flag for isotropic voxels between x&y / z
         'ndel',         0, ... % Gradient sample delay
         'nramp',        [], ... % Number of ramp points in spiral traj
@@ -335,26 +334,12 @@ function im = recon3dflex(varargin)
         fprintf('\nUsing RMS to combine coils, this may be inaccurate.');
         im = sqrt( mean(im.^2,4) );
         
-    elseif info.ncoils > 1 && strcmpi(args.smap,'estimate')
-        % Combine coils using Ssos sensitivity map
-        fprintf('\nNo sensitivity map passed, estimating one using ssos...\n');
-        args.smap = mri_sensemap_denoise(squeeze(im(:,:,:,:,1)),...
-            'niter',10,'thresh',0.15);
-        smask = zeros(size(args.smap));
-        for coiln = 1:info.ncoils
-            smask(:,:,:,coiln) = makemask(abs(args.smap(:,:,:,coiln)), ...
-                'fwhm', 0.1, 'thresh', 0.1, 'silent', 1);
-        end
-        smask = smask .* makemask(sqrt(mean(abs(im(:,:,:,:,1)).^2,4)), ...
-            'fwhm', 0.1, 'thresh', 0.15, 'silent', 1);
-        im = div0( sum( conj(smask.*args.smap) .* im, 4), ...
-            sum( abs(smask.*args.smap).^2, 4) );
-        
     elseif info.ncoils > 1 && ~isempty(args.smap)
         % Combine coils using passed in sensitivity map
         fprintf('\nUsing sensitivity map to combine coils');
         im = div0( sum( conj(args.smap) .* im, 4), ...
             sum( abs(args.smap).^2, 4) );
+        im = im .* (sum(abs(args.smap),4) > args.tol);
         
     else
         % Tell user only 1 coils will be used
