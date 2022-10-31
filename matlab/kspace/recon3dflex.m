@@ -172,7 +172,7 @@ function im = recon3dflex(varargin)
     
     % Get raw data and info
     if (isempty(args.raw) || isempty(args.info)) % If reading from Pfile
-        [raw,info] = readpfile(args.pfile);
+        [raw,info] = formatpfile(args.pfile);
     else % If raw/scaninfo is user specified
         raw = args.raw;
         info = args.info;
@@ -395,29 +395,9 @@ function im = recon3dflex(varargin)
 end
 
 %% readpfile function definition
-function [raw,info] = readpfile(searchstr)
+function [raw,info] = formatpfile(searchstr)
 
-    % Set default for search string
-    if nargin < 1 || isempty(searchstr)
-        searchstr = 'P*.7';
-    end
-
-    % Find Pfile based on search string
-    dirp = dir(searchstr);
-    if size(dirp,1) > 1
-        fprintf('\nMultiple Pfiles found for search string %s:',searchstr);
-        for i = 1:size(dirp,1)
-            fprintf('\n\t%s',dirp(i).name);
-        end
-        fprintf('\n--> Only continuing with first Pfile...');
-    elseif size(dirp,1) < 1
-        error('No Pfiles found for search string %s:',searchstr);
-    end
-    pfile_name = [dirp(1).folder '/' dirp(1).name];
-    fprintf('\nReading Pfile: %s', dirp(1).name);
-    
-    % Read header using GE wrapper
-    h = ge_pfilehdr(pfile_name);
+    [raw,h] = readpfile(searchstr);
     
     % Create info struct based on header info
     info = struct(...
@@ -434,31 +414,13 @@ function [raw,info] = readpfile(searchstr)
         'slthick',  h.image.slthick/10 ... % Slice Thickness (cm)
         );
     
-    % Open pfile
-    [pfile,msg_fopen] = fopen(pfile_name,'r','ieee-le');
-    if ~isempty(msg_fopen), error(msg_fopen); end
-    if fseek(pfile, h.rdb.off_data, 'bof'), error('BOF not found\n'); end
-
-    % Read in data
-    raw = zeros(info.nframes,info.ndat,info.nleaves,info.nslices,info.ncoils);
-    for coiln = 1:info.ncoils
-        for slicen = 1:info.nslices
-            % Read in baseline
-            fread(pfile, 2*info.ndat, 'short');
-
-            % Read in data
-            dat = fread(pfile, [2*info.ndat info.nframes*info.nleaves], 'short');
-            dat = reshape(dat(1:2:end,:) + 1i * dat(2:2:end,:), ...
-                info.ndat, info.nleaves, info.nframes);
-
-            % Store in raw
-            raw(:,:,:,slicen,coiln) = permute(dat,[3 1 2]);
-
-        end
-    end
-    
-    % Close pfile
-    fclose(pfile);
+    % Reshape data
+    raw = reshape(raw, ...
+        info.ndat,info.nframes*info.nleaves+1,info.nslices,info.ncoils);
+    raw(:,1,:,:) = []; % cut out baseline
+    raw = permute(reshape(raw, ...
+        info.ndat,info.nframes,info.nleaves,info.nslices,info.ncoils), ...
+        [2 1 3 4 5]);
 
 end
 
