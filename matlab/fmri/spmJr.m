@@ -130,6 +130,9 @@ function zscore = spmJr(im,A,varargin)
     end
     
     % Normalize and round mask
+    if isempty(args.mask)
+        args.mask = makemask(im,'fwhm',0.1,'thresh',0.1,'silent',1);
+    end
     args.mask = (args.mask - min(args.mask(:))) / ...
         (max(args.mask(:)) - min(args.mask(:)));
     args.mask = round(args.mask);

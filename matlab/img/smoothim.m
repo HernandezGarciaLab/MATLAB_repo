@@ -87,6 +87,7 @@ function im_smooth = smoothim(im,varargin)
     if ischar(im)
         [im,h] = readnii(im);
         args.fov = h.dim(2:4) .* h.pixdim(2:4);
+        args.tr = h.pixdim(5);
     elseif isempty(args.fov) && nargout < 1
         error('Must specify fov if image is not read from file');
     end
@@ -109,8 +110,8 @@ function im_smooth = smoothim(im,varargin)
     if nargout < 1
         
         % Save image
-        writenii('./smoothed.nii', 1.*mask, ...
-            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
+        writenii('./smoothed.nii', im_smooth, ...
+            'fov', args.fov, 'tr', 1, 'doscl', args.scaleoutput);
         if ~args.silent
             fprintf('\nSmoothed image saved to smoothed.nii');
         end
