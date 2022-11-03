@@ -100,11 +100,12 @@ function im_smooth = smoothim(im,varargin)
         linspace(-1,1,dim(1)), ...
         linspace(-1,1,dim(2)), ...
         linspace(-1,1,dim(3)));
-    K = reshape(exp(-(vecnorm([X(:),Y(:),Z(:)],2,2)/args.fwhm).^2),dim);
+    K = reshape(exp(-(vecnorm([X(:),Y(:),Z(:)],2,2)/2/args.fwhm).^2),dim);
     K = K / sum(K(:));
     
     % Convolve
-    im_smooth = fftshift( ifftn( fftn(im) .* fftn(K) ) );
+    im_smooth = abs( ifft3c( fft3c(im) .* fft3c(K) ) );
+    im_smooth = im_smooth .* (sum(im,1:3) ./ sum(im_smooth,1:3));
 
     % Save results that aren't returned to nifti:
     if nargout < 1
@@ -122,6 +123,10 @@ function im_smooth = smoothim(im,varargin)
         if ~args.silent
             fprintf('\nSmoothed image will not be saved to file since it is returned');
         end
+    end
+    
+    if ~args.silent
+        fprintf('\n');
     end
     
 end

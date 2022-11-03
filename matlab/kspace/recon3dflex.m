@@ -304,6 +304,7 @@ function im = recon3dflex(varargin)
     im = zeros([dim,info.ncoils,length(args.frames)]);
     fprintf('\nReconning image... ');
     msg_fprog = '';
+    savef = 1;
     
     % Loop through frames
     for framen = args.frames
@@ -321,9 +322,11 @@ function im = recon3dflex(varargin)
             data = reshape(raw(framen,:,:,:,coiln),[],1);
             im_cur = zeros(dim);
             im_cur(nufftmask) = Gm' * (dcf.*data);
-            im(:,:,:,coiln,framen) = im_cur;
+            im(:,:,:,coiln,savef) = im_cur;
         end
         
+        % Increase saved frame index
+        savef = savef+1;
     end
     
     % Save first frame coil images for smap construction

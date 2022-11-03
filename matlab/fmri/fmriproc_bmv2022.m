@@ -76,7 +76,7 @@ rewritenii(im_name); % rewrite nii file to maintain consistent header fmt
 % (this section is NOT skippable)
 
 % **** SET PARAMETERS ****
-stim_tstart = -18;
+stim_tstart = -13.5;
 stim_toff = 30;
 stim_ton = 30;
 % ************************
@@ -91,16 +91,16 @@ C = eye(2); % make contrast matrix
 %% Make noise component regressors using CompCor
 % (this section is skippable if you don't want to do CompCor)
 
-% **** SET PARAMETERS ****
-compcor_stdthresh = 0.9; % std noise threshold (as fraction of max std)
-compcor_N = 20; % number of noise principal components to generate
-% ************************
-
-% Perform operations
-A_noise = compcor(im_name,'stdthresh',compcor_stdthresh,'N',compcor_N,...
-    'A',A,'show',1,'mask',mask_name); % perform compcor
-A = [A, A_noise]; % add A_noise into design matrix
-C = [C,zeros(2,size(A_noise,2))]; % append contrast matrix
+% % **** SET PARAMETERS ****
+% compcor_stdthresh = 0.9; % std noise threshold (as fraction of max std)
+% compcor_N = 20; % number of noise principal components to generate
+% % ************************
+% 
+% % Perform operations
+% A_noise = compcor(im_name,'stdthresh',compcor_stdthresh,'N',compcor_N,...
+%     'A',A,'show',1,'mask',mask_name); % perform compcor
+% A = [A, A_noise]; % add A_noise into design matrix
+% C = [C,zeros(2,size(A_noise,2))]; % append contrast matrix
 
 %% Estimate parameter maps
 % (this section is NOT skippable since it's like the entire point of the

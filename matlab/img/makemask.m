@@ -100,10 +100,12 @@ function mask = makemask(im,varargin)
     end
     
     % Smooth image and read in smoothed image
-    if ~args.silent
-        fprintf('\nSmoothing with a FWHM of %.4f * FOV', args.fwhm);
+    if args.fwhm > 0
+        if ~args.silent
+            fprintf('\nSmoothing with a FWHM of %.4f * FOV', args.fwhm);
+        end
+        im = smoothim(im,'fwhm',args.fwhm,'silent',1);
     end
-    im_smooth = smoothim(im,'fwhm',args.fwhm,'silent',1);
     
     % Begin masking
     if ~args.silent
@@ -113,7 +115,7 @@ function mask = makemask(im,varargin)
     % Loop through slices along each dimension
     mask = ones(size(im));
     for slicex = 1:size(im,1)
-        imsl = im_smooth(slicex,:,:);
+        imsl = im(slicex,:,:);
         % Remove pixels with intensity less than threshold
         mask(slicex,:,:) = ...
             (imsl > mean(im,'all') + args.thresh*std(im,[],'all'));
@@ -122,14 +124,14 @@ function mask = makemask(im,varargin)
     end
     % Repeat for y
     for slicey = 1:size(im,2)
-        imsl = im_smooth(:,slicey,:).*mask(:,slicey,:);
+        imsl = im(:,slicey,:).*mask(:,slicey,:);
         mask(:,slicey,:) = ...
             (imsl > mean(im,'all') + args.thresh*std(im,[],'all'));
         mask(:,slicey,:) = imfill(squeeze(mask(:,slicey,:)),'holes');
     end
     % Repeat for z
     for slicez = 1:size(im,3)
-        imsl = im_smooth(:,:,slicez).*mask(:,:,slicez);
+        imsl = im(:,:,slicez).*mask(:,:,slicez);
         mask(:,:,slicez) = ...
             (imsl > mean(im,'all') + args.thresh*std(im,[],'all'));
         mask(:,:,slicez) = imfill(squeeze(mask(:,:,slicez)),'holes');
