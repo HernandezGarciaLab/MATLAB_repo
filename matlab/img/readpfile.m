@@ -66,14 +66,13 @@ function [data,hdr] = readpfile(searchstr)
     end
     
     % Data
-    if fseek(fid,hdr.rdb.off_data,'bof')
-        error('BOF not found')
-    end
+    fseek(fid,hdr.rdb.off_data,'bof');
     data = fread(fid,inf,'short');
     data = data(1:2:end) + 1i * data(2:2:end);
 
     % Close file
     fclose(fid);
+    fprintf('\n');
 
 end
 

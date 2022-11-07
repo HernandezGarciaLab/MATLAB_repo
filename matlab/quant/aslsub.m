@@ -171,7 +171,7 @@ function im_sub = aslsub(im,varargin)
     if args.rel && args.fstart > 1
         fprintf('\nReturning subtractions as relative (%%) signal change');
         M0 = mean(im(:,:,:,1:args.fstart-1),4);
-        im_sub = 100 * im_sub ./ (M0 + eps());
+        im_sub = div0(100 * im_sub, M0);
     elseif args.rel
         warning('Cannot compute relative signal change without M0 frames');
     end

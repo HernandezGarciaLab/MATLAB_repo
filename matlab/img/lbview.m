@@ -56,8 +56,8 @@ function im_lb = lbview(im, varargin)
 %       - default is 'auto'
 %   - 'colormap:
 %       - color map
-%       - string describing matlab color map to use
-%       - default is 'gray'
+%       - Nx3 color map array
+%       - default is gray(64)
 %   - 'colorbar':
 %       - option to include a colorbar
 %       - boolean integer (0 or 1) describing whether or not to use
@@ -80,7 +80,7 @@ function im_lb = lbview(im, varargin)
         'nrows',        'auto', ...
         'orientation',  'axial', ...
         'caxis',        'auto', ...
-        'colormap',     'gray', ...
+        'colormap',     gray(64), ...
         'colorbar',     1 ...
         );
     
@@ -153,7 +153,7 @@ function im_lb = lbview(im, varargin)
         if args.colorbar
             colorbar;
         end
-        colormap(args.colormap);
+        set(gca,'colormap',args.colormap);
         caxis(args.caxis);
 
         % Clear im_lb if not returned so it won't be printed to console

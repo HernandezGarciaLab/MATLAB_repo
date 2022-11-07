@@ -59,8 +59,8 @@ function im_ortho = orthoview(im,varargin)
 %       - default is 'auto'
 %   - 'colormap:
 %       - color map
-%       - string describing matlab color map to use
-%       - default is 'gray'
+%       - Nx3 color map array
+%       - default is gray(64)
 %   - 'colorbar':
 %       - option to include a colorbar
 %       - boolean integer (0 or 1) describing whether or not to use
@@ -83,7 +83,7 @@ function im_ortho = orthoview(im,varargin)
         'offset',       [0,0,0], ...
         'logscale',     0, ...
         'caxis',        'auto', ...
-        'colormap',     'gray', ...
+        'colormap',     gray(64), ...
         'colorbar',     1 ...
         );
     
@@ -135,9 +135,9 @@ function im_ortho = orthoview(im,varargin)
     end
     
     % Get cuts
-    im_Sag = circshift(im(round(size(im,1)/2), :, :),args.offset(1),1);
-    im_Cor = circshift(im(:, round(size(im,2)/2), :),args.offset(2),2);
-    im_Ax = circshift(im(:, :, round(size(im,3)/2)),args.offset(3),3);
+    im_Sag = im(mod(round(size(im,1)/2)+args.offset(1),size(im,1)), :, :);
+    im_Cor = im(:, mod(round(size(im,2)/2)+args.offset(2),size(im,2)), :);
+    im_Ax = im(:, :, mod(round(size(im,3)/2)+args.offset(3),size(im,3)));
     
     % Concatenate cuts
     if strcmpi(args.orientation,'horizontal')
@@ -157,7 +157,7 @@ function im_ortho = orthoview(im,varargin)
         if args.colorbar
             colorbar;
         end
-        colormap(args.colormap);
+        set(gca,'colormap',args.colormap);
         caxis(args.caxis);
 
         % Clear im_ortho if not returned so it won't be printed to console
