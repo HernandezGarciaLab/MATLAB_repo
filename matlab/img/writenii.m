@@ -36,11 +36,15 @@ function writenii(niifile_name,im,varargin)
 %   - 'fov':
 %       - image field of view
 %       - array of 1ximage size describing image fov (standard: cm)
-%       - default is [2 2 2]
+%       - if empty, fov from header will be used; if header is also empty,
+%           default of [1 1 1] will be used
+%       - default is empty
 %   - 'tr':
 %       - temporal frame repetition time
 %       - double/float describing tr (standard: ms)
-%       - default is 1
+%       - if empty, tr from header will be used; if header is also empty,
+%           default of 1000 ms will be used
+%       - default is empty
 %   - 'doscl':
 %       - option to scale output to full dynamic range in save file
 %       - boolean integer (0 or 1) describing whether or not to use
@@ -53,8 +57,8 @@ function writenii(niifile_name,im,varargin)
     % Define default arguments
     defaults = struct(...
         'h',        [], ... % Raw data
-        'fov',      [2 2 2], ... % Info structure
-        'tr',       1, ... % Search string for Pfile
+        'fov',      [], ... % Info structure
+        'tr',       [], ... % Search string for Pfile
         'doscl',    1 ... % Kspace distance tolerance
         );
     
@@ -84,23 +88,27 @@ function writenii(niifile_name,im,varargin)
         h = makeniihdr('datatype', 4, 'bitpix', 16);
         h.dim(1) = ndims(im);
         h.pixdim(1) = ndims(im);
-    elseif ~isequal(args.h.dim(2:5), size(im))
+        if isempty(args.fov)
+            args.fov = [1 1 1];
+        end
+        if isempty(args.tr)
+            args.tr = 1000;
+        end
+    elseif ~isequal(args.h.dim(2:5), [dim,size(im,4)])
         error('header dimensions do not match array size');
-    else
+    else % if header is passed
         h = args.h;
+        if isempty(args.fov)
+            args.fov = h.dim(2:4).*h.pixdim(2:4);
+        end
+        if isempty(args.tr)
+            args.tr = h.pixdim(5);
+        end
     end
     
-    % Set fov if passed
-    if ~isempty(args.fov)
-        h.dim(2:4) = dim;
-        h.pixdim(2:4) = args.fov./dim;
-    end
-    
-    % Set tr if passed
-    if ~isempty(args.tr)
-        h.dim(5) = size(im,4);
-        h.pixdim(5) = args.tr;
-    end
+    % Set fov and tr
+    h.dim(2:5) = [dim size(im,4)];
+    h.pixdim(2:5) = [args.fov./dim args.tr];
 
     % Determine scaling factors for saving full dynamic range
     if args.doscl
