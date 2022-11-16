@@ -1,0 +1,17 @@
+University of Michigan Arterial Spin Labeling (UMASL) MRI project
+by Luis Hernandez-Garcia and David Frey @ University of Michigan 2022
+
+This repository contains (or will contain) source code for pulse sequence
+development in EPIC and IDEA environments, as well as reconstruction and
+image processing in MATLAB and Python
+
+To install, run 'git clone git@github.com:fmri/umasl.git' from the command
+line
+
+Further usage information can be found in the following subdirectories:
+- epic (for pulse sequence development in GE's EPIC psd environment)
+- idea (for pulse sequence development in Siemens' IDEA psd environment)
+- matlab (for image reconstruction/processing in MATLAB)
+- python (for image reconstruction/processing in Python)
+
+Bugs can be submitted through github, or emailed to djfrey@umich.edu
