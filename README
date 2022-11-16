@@ -1,17 +1,27 @@
-University of Michigan Arterial Spin Labeling (UMASL) MRI project
+UMASL MATLAB image reconstruction/processing toolbox
 by Luis Hernandez-Garcia and David Frey @ University of Michigan 2022
 
-This repository contains (or will contain) source code for pulse sequence
-development in EPIC and IDEA environments, as well as reconstruction and
-image processing in MATLAB and Python
+This directory contains tools for image reconstruction and processing in
+MATLAB
 
-To install, run 'git clone git@github.com:fmri/umasl.git' from the command
-line
+To get started, you can run
+'addpath(genpath('{PATH TO REPO}/MATLAB_repo'))' to add all functions
+and scripts into your path
 
-Further usage information can be found in the following subdirectories:
-- epic (for pulse sequence development in GE's EPIC psd environment)
-- idea (for pulse sequence development in Siemens' IDEA psd environment)
-- matlab (for image reconstruction/processing in MATLAB)
-- python (for image reconstruction/processing in Python)
+This directory contains the following subdirectories:
+- fmri (FMRI processing, such as GLM tools and compcor)
+- generic (high-level functions that can apply to most functions even
+    outside umasl)
+- img (image file reading, writing, and display functions)
+- kspace (functions focused on processing kspace data such as
+    reconstruction)
+- mrf (functions for mri fingerprinting)
+- quant (functions for ASL quantification)
+- tools (GUI-based tools such as FASL and ORTHO)
 
-Bugs can be submitted through github, or emailed to djfrey@umich.edu
+This directory has some dependencies which vary from function to function,
+which are included in the documentation (help message) of each function.
+The most commonly used dependencies are:
+- spm12 (git@github.com/spm/spm12.git)
+- mirt (git@github.com/JeffFessler/mirt.git)
+- MATLAB Image Processing Toolbox
