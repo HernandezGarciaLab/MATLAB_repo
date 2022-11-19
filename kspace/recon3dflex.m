@@ -297,14 +297,8 @@ function im = recon3dflex(varargin)
     
     if ~isempty(args.phantom)
         % Reconstruct shepp-logan phantom from trajectory
-        raw_sim = zeros(1,size(raw,2),size(raw,3),size(raw,4),1);
-        for leafn = 1:info.nleaves
-            for slicen = 1:info.nslices
-                raw_sim(1,:,leafn,slicen,1) = ...
-                    kspace3dphantom(ks(:,:,leafn,slicen), [], 'size', fov);
-            end
-        end
-        phantom_sim = Gm' * (dcf.*raw_sim(:));
+        raw_phantom = kspace3dphantom(kspace, [], 'size', fov);
+        phantom_sim = Gm' * (dcf.*raw_phantom);
         phantom_sim = reshape(phantom_sim,dim);
         
         % Calculate true phantom image
@@ -313,6 +307,7 @@ function im = recon3dflex(varargin)
         z = linspace(-fov(1)/2,fov(1)/2,dim(1));
         [X,Y,Z] = ndgrid(x,y,z);
         [~,phantom_truth] = kspace3dphantom([],[X(:),Y(:),Z(:)],'size',fov);
+        phantom_truth = reshape(phantom_truth,dim);
         
         % Compare simulation to truth
         b_sim = [min(phantom_sim(:)), max(phantom_sim(:))];
