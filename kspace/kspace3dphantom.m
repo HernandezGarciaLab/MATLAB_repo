@@ -41,7 +41,7 @@ function [Sk,Si] = kspace3dphantom(k,x,varargin)
 %           offset, z offset, x rotation (deg), y rotation (deg), z rotatin
 %           (deg)] respectively, where dimensions are fractions of fov
 %       - Can be a string name of a preset 3d phantom: 'shepp-logan',
-%           'modified-shepp-logan', or 'ye-yu-wang'
+%           'modified-shepp-logan', or 'yu-ye-wang'
 %       - default is 'modified-shepp-logan'
 %   - 'size':
 %       - field of view of phantom image (cm)
@@ -118,7 +118,8 @@ function [Sk,Si] = kspace3dphantom(k,x,varargin)
        
         % Calculate kspace signal
         if size(k,2) == 3
-            ktd = -k*d';
+            k(vecnorm(k,2,2)==0,:) = eps;
+            ktd = k*d';
             K = vecnorm(k*A'.*abc,2,2);
             Sk = Sk + ...
                 p * abs(det(A')) * prod(abc) * exp(-1i * 2*pi*ktd) .* ...

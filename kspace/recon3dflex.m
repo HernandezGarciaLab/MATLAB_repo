@@ -115,11 +115,18 @@ function im = recon3dflex(varargin)
 %       - integer describing highest order of polynomial for lsq fit
 %       - if -1 is passed, no phase detrending will be done
 %       - default is -1
-%   - 't2weight'
-%       - weighting for T2 decay compensation
-%       - float/double between 0 and 1 describing weight
-%       - 0 is no t2 decay compensation
-%       - default is 0
+%   - 't2'
+%       - T2 value for T2 decay compensation
+%       - float/double describing T2 in ms
+%       - if 'fit' is passed, recon will try to estimate an average t2
+%       - if left empty, no t2 will not be considered in signal model
+%       - default is empty
+%   - 'phantom'
+%       - analytical phantom for trajectory image simulation
+%       - either an Nx3 ellipsoid parameter matrix, or a string describing
+%           which phantom to use ('shepp-logan', 'modified-shepp-logan', or
+%           'yu-ye-wang'), type 'help kspace3dphantom' for more info
+%       - default is 'modified-shepp-logan'
 %   - 'nworkers'
 %       - number of workers to use in parallel pool
 %       - integer describing number of workers
@@ -135,10 +142,8 @@ function im = recon3dflex(varargin)
 %   - im:
 %       - output timeseries image
 %       - complex array of image dimension
-%       - if im is not returned, timeseries image and psf will be saved to
-%           nii files
-%       - if im is returned, timeseries image and psf will not be saved to
-%           nii files
+%       - if im is not returned, all images will be saved to nii files
+%       - if im is returned, no images will be saved to nii files
 %
 
     % Define default arguments
@@ -158,7 +163,7 @@ function im = recon3dflex(varargin)
         'nramp',        [], ... % Number of ramp points in spiral traj
         'pdorder',      -1, ... % Order of phase detrending poly fit
         't2',           [], ... % Option to perform t2 compensation
-        'phantom',      'modified-shepp-logan', ... % Simulate trajectory image
+        'phantom',      'modified-shepp-logan', ... % Phantom for trajectory sim image
         'nworkers',     feature('numcores'), ... % Number of workers to use in parpool
         'scaleoutput',  1 ... % Option to scale output to full dynamic range
         );
@@ -296,29 +301,11 @@ function im = recon3dflex(varargin)
     psf = Gm' * (dcf.*ones(numel(ks(:,1,:,:)),1));
     
     if ~isempty(args.phantom)
-        % Reconstruct shepp-logan phantom from trajectory
-        raw_phantom = kspace3dphantom(kspace, [], 'size', fov);
+        % Reconstruct phantom from trajectory
+        raw_phantom = kspace3dphantom(kspace,[],'size',fov, ...
+            'e',args.phantom);
         phantom_sim = Gm' * (dcf.*raw_phantom);
         phantom_sim = reshape(phantom_sim,dim);
-        
-        % Calculate true phantom image
-        x = linspace(-fov(1)/2,fov(1)/2,dim(1));
-        y = linspace(-fov(2)/2,fov(2)/2,dim(2));
-        z = linspace(-fov(1)/2,fov(1)/2,dim(1));
-        [X,Y,Z] = ndgrid(x,y,z);
-        [~,phantom_truth] = kspace3dphantom([],[X(:),Y(:),Z(:)],'size',fov);
-        phantom_truth = reshape(phantom_truth,dim);
-        
-        % Compare simulation to truth
-        b_sim = [min(phantom_sim(:)), max(phantom_sim(:))];
-        b_truth = [min(phantom_truth(:)), max(phantom_truth(:))];
-        phantom_sim = (phantom_sim - b_sim(1)) / diff(b_sim);
-        phantom_truth = (phantom_truth - b_truth(1)) / diff(b_truth);
-        phantom_NRMSE = 100 * sqrt(mean( ...
-            ((phantom_sim(:) - phantom_truth(:)) ./ phantom_truth).^2)); 
-        fprintf('\nPhantom trajectory simulation NRMSE = %f%%', ...
-            phantom_NRMSE);
-        
     end
     
     % Initialize output array and progress string
@@ -407,7 +394,7 @@ function im = recon3dflex(varargin)
         
         % Save simulation if performed
         if ~isempty(args.phantom)
-            writenii([info.wd '/sim.nii'], abs(phantom_sim), ...
+            writenii([info.wd '/phantom.nii'], abs(phantom_sim), ...
                 'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
             fprintf('\nPhantom trajectory simulation saved to phantom.nii');
         end
