@@ -158,7 +158,7 @@ function im = recon3dflex(varargin)
         'nramp',        [], ... % Number of ramp points in spiral traj
         'pdorder',      -1, ... % Order of phase detrending poly fit
         't2',           [], ... % Option to perform t2 compensation
-        'sim',          1, ... % Simulate trajectory image
+        'phantom',      'modified-shepp-logan', ... % Simulate trajectory image
         'nworkers',     feature('numcores'), ... % Number of workers to use in parpool
         'scaleoutput',  1 ... % Option to scale output to full dynamic range
         );
@@ -295,7 +295,7 @@ function im = recon3dflex(varargin)
     % Reconstruct point spread function
     psf = Gm' * (dcf.*ones(numel(ks(:,1,:,:)),1));
     
-    if args.sim
+    if ~isempty(args.phantom)
         % Reconstruct shepp-logan phantom from trajectory
         raw_sim = zeros(1,size(raw,2),size(raw,3),size(raw,4),1);
         for leafn = 1:info.nleaves
@@ -304,23 +304,25 @@ function im = recon3dflex(varargin)
                     kspace3dphantom(ks(:,:,leafn,slicen), [], 'size', fov);
             end
         end
-        im_sim = Gm' * (dcf.*raw_sim(:));
-        im_sim = reshape(im_sim,dim);
+        phantom_sim = Gm' * (dcf.*raw_sim(:));
+        phantom_sim = reshape(phantom_sim,dim);
         
         % Calculate true phantom image
         x = linspace(-fov(1)/2,fov(1)/2,dim(1));
         y = linspace(-fov(2)/2,fov(2)/2,dim(2));
         z = linspace(-fov(1)/2,fov(1)/2,dim(1));
         [X,Y,Z] = ndgrid(x,y,z);
-        [~,truth_sim] = kspace3dphantom([],[X(:),Y(:),Z(:)],'size',fov);
+        [~,phantom_truth] = kspace3dphantom([],[X(:),Y(:),Z(:)],'size',fov);
         
-        % Compare
-        b_sim = [min(im_sim(:)), max(im_sim(:))];
-        b_truth = [min(truth_sim(:)), max(truth_sim(:))];
-        im_sim = (im_sim - b_sim(1)) / diff(b_sim);
-        truth_sim = (truth_sim - b_truth(1)) / diff(b_truth);
-        NRMSE_sim = sqrt( mean((im_sim(:) - truth_sim(:)).^2) ); 
-        fprintf('\nShepp-logan trajectory simulation NRMSE = %f', NRMSE_sim);
+        % Compare simulation to truth
+        b_sim = [min(phantom_sim(:)), max(phantom_sim(:))];
+        b_truth = [min(phantom_truth(:)), max(phantom_truth(:))];
+        phantom_sim = (phantom_sim - b_sim(1)) / diff(b_sim);
+        phantom_truth = (phantom_truth - b_truth(1)) / diff(b_truth);
+        phantom_NRMSE = 100 * sqrt(mean( ...
+            ((phantom_sim(:) - phantom_truth(:)) ./ phantom_truth).^2)); 
+        fprintf('\nPhantom trajectory simulation NRMSE = %f%%', ...
+            phantom_NRMSE);
         
     end
     
@@ -409,10 +411,10 @@ function im = recon3dflex(varargin)
         fprintf('\nPoint spread function saved to psf.nii');
         
         % Save simulation if performed
-        if args.sim
-            writenii([info.wd '/sim.nii'], abs(im_sim), ...
+        if ~isempty(args.phantom)
+            writenii([info.wd '/sim.nii'], abs(phantom_sim), ...
                 'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
-            fprintf('\nShepp-logan traj sim saved to sim.nii');
+            fprintf('\nPhantom trajectory simulation saved to phantom.nii');
         end
         
         % Clear im so it won't be returned
