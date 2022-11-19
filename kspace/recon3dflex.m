@@ -158,7 +158,7 @@ function im = recon3dflex(varargin)
         'nramp',        [], ... % Number of ramp points in spiral traj
         'pdorder',      -1, ... % Order of phase detrending poly fit
         't2',           [], ... % Option to perform t2 compensation
-        'mask',         'full', ...
+        'sim',          1, ... % Simulate trajectory image
         'nworkers',     feature('numcores'), ... % Number of workers to use in parpool
         'scaleoutput',  1 ... % Option to scale output to full dynamic range
         );
@@ -268,10 +268,6 @@ function im = recon3dflex(varargin)
     end
     
     % Create Gmri object
-    if strcmpi(args.mask,'full')
-        args.mask = ones(dim);
-    end
-    nufftmask = (args.mask > 0);
     kspace = [reshape(ks(:,1,:,:),[],1), ...
         reshape(ks(:,2,:,:),[],1), ...
         reshape(ks(:,3,:,:),[],1)];
@@ -282,7 +278,7 @@ function im = recon3dflex(varargin)
         'table',...
         2^10,...
         'minmax:kb'};
-    Gm = Gmri(kspace, nufftmask, ...
+    Gm = Gmri(kspace, true(dim), ...
         'fov', fov, 'basis', {'rect'}, 'nufft', nufft_args(:)');
     
     % Create density compensation using pipe algorithm
@@ -292,13 +288,41 @@ function im = recon3dflex(varargin)
     if ~isempty(args.t2)
         fprintf('\n');
         R2 = 1/(args.t2*1e3); % convert to 1/usec
-        Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2*nufftmask,1);
+        Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2,1);
     end
     
 %% Reconstruct image using NUFFT
     % Reconstruct point spread function
-    psf = ones(dim);
-    psf(nufftmask) = Gm' * (dcf.*ones(numel(ks(:,1,:,:)),1));
+    psf = Gm' * (dcf.*ones(numel(ks(:,1,:,:)),1));
+    
+    if args.sim
+        % Reconstruct shepp-logan phantom from trajectory
+        raw_sim = zeros(1,size(raw,2),size(raw,3),size(raw,4),1);
+        for leafn = 1:info.nleaves
+            for slicen = 1:info.nslices
+                raw_sim(1,:,leafn,slicen,1) = ...
+                    kspace3dphantom(ks(:,:,leafn,slicen), [], 'size', fov);
+            end
+        end
+        im_sim = Gm' * (dcf.*raw_sim(:));
+        im_sim = reshape(im_sim,dim);
+        
+        % Calculate true phantom image
+        x = linspace(-fov(1)/2,fov(1)/2,dim(1));
+        y = linspace(-fov(2)/2,fov(2)/2,dim(2));
+        z = linspace(-fov(1)/2,fov(1)/2,dim(1));
+        [X,Y,Z] = ndgrid(x,y,z);
+        [~,truth_sim] = kspace3dphantom([],[X(:),Y(:),Z(:)],'size',fov);
+        
+        % Compare
+        b_sim = [min(im_sim(:)), max(im_sim(:))];
+        b_truth = [min(truth_sim(:)), max(truth_sim(:))];
+        im_sim = (im_sim - b_sim(1)) / diff(b_sim);
+        truth_sim = (truth_sim - b_truth(1)) / diff(b_truth);
+        NRMSE_sim = sqrt( mean((im_sim(:) - truth_sim(:)).^2) ); 
+        fprintf('\nShepp-logan trajectory simulation NRMSE = %f', NRMSE_sim);
+        
+    end
     
     % Initialize output array and progress string
     im = zeros([dim,info.ncoils,length(args.frames)]);
@@ -320,8 +344,7 @@ function im = recon3dflex(varargin)
         parfor (coiln = 1:info.ncoils, args.nworkers)
             % Recon using adjoint NUFFT operation
             data = reshape(raw(framen,:,:,:,coiln),[],1);
-            im_cur = zeros(dim);
-            im_cur(nufftmask) = Gm' * (dcf.*data);
+            im_cur = reshape(Gm' * (dcf.*data), dim);
             im(:,:,:,coiln,savef) = im_cur;
         end
         
@@ -357,21 +380,21 @@ function im = recon3dflex(varargin)
         
         if info.ncoils > 1
             % Save coil-wise images to file for better smap construction
-            writenii([args.wd '/coils_mag.nii'], squeeze(abs(imf1coils)), ...
+            writenii([info.wd '/coils_mag.nii'], squeeze(abs(imf1coils)), ...
                 'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
-            writenii([args.wd '/coils_ang.nii'], squeeze(angle(imf1coils)), ...
+            writenii([info.wd '/coils_ang.nii'], squeeze(angle(imf1coils)), ...
                 'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
             fprintf('\nCoil images (frame 1) saved to coil_*.nii');
         end
         
         % Save timeseries
-        writenii([args.wd '/timeseries_mag.nii'], abs(im), ...
+        writenii([info.wd '/timeseries_mag.nii'], abs(im), ...
             'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
         fprintf('\nTimeseries saved to timeseries_mag.nii');
         
         if info.ncoils == 1 || ~isempty(args.smap)
             % Save timeseries phase
-            writenii([args.wd '/timeseries_ang.nii'], angle(im), ...
+            writenii([info.wd '/timeseries_ang.nii'], angle(im), ...
                 'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
             fprintf('\nTimeseries phase saved to timeseries_ang.nii');
         else
@@ -381,9 +404,16 @@ function im = recon3dflex(varargin)
         end
         
         % Save point spread function
-        writenii([args.wd '/psf.nii'], abs(psf), ...
+        writenii([info.wd '/psf.nii'], abs(psf), ...
             'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
         fprintf('\nPoint spread function saved to psf.nii');
+        
+        % Save simulation if performed
+        if args.sim
+            writenii([info.wd '/sim.nii'], abs(im_sim), ...
+                'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
+            fprintf('\nShepp-logan traj sim saved to sim.nii');
+        end
         
         % Clear im so it won't be returned
         clear im;
