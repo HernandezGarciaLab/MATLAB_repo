@@ -123,12 +123,16 @@ function [Sk,Si] = kspace3dphantom(k,x,varargin)
             Sk = Sk + ...
                 p * abs(det(A')) * prod(abc) * exp(-1i * 2*pi*ktd) .* ...
                 ( sin(2*pi*K) - 2*pi*K.*cos(2*pi*K) ) ./ (2*pi^2*K.^3);
+        elseif ~isempty(k)
+            error('k must be an Nx3 matrix');
         end
         
         % Calculate image space signal
         if size(x,2) == 3
             Si( sum(((x*A' - d) ./ abc).^2, 2) <= 1 ) = ...
                 Si( sum(((x*A' - d) ./ abc).^2, 2) <= 1 ) + p;
+        elseif ~isempty(x)
+            error('x must be an Nx3 matrix');
         end
         
     end
