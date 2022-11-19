@@ -188,8 +188,8 @@ function im = recon3dflex(varargin)
     end
     
     % Get un-transformed kspace trajectory and view transformations
-    ks_0 = load('ktraj_cart.txt');
-    kviews = load('kviews.txt');
+    ks_0 = load([info.wd '/ktraj_cart.txt']);
+    kviews = load([info.wd '/kviews.txt']);
     
     % Determine trajectory type based on kz encoding fractions
     isSOS = any(kviews(:,3) < 1);
@@ -357,21 +357,21 @@ function im = recon3dflex(varargin)
         
         if info.ncoils > 1
             % Save coil-wise images to file for better smap construction
-            writenii('./coils_mag.nii', squeeze(abs(imf1coils)), ...
+            writenii([args.wd '/coils_mag.nii'], squeeze(abs(imf1coils)), ...
                 'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
-            writenii('./coils_ang.nii', squeeze(angle(imf1coils)), ...
+            writenii([args.wd '/coils_ang.nii'], squeeze(angle(imf1coils)), ...
                 'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
             fprintf('\nCoil images (frame 1) saved to coil_*.nii');
         end
         
         % Save timeseries
-        writenii('./timeseries_mag.nii', abs(im), ...
+        writenii([args.wd '/timeseries_mag.nii'], abs(im), ...
             'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
         fprintf('\nTimeseries saved to timeseries_mag.nii');
         
         if info.ncoils == 1 || ~isempty(args.smap)
             % Save timeseries phase
-            writenii('./timeseries_ang.nii', angle(im), ...
+            writenii([args.wd '/timeseries_ang.nii'], angle(im), ...
                 'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
             fprintf('\nTimeseries phase saved to timeseries_ang.nii');
         else
@@ -381,7 +381,7 @@ function im = recon3dflex(varargin)
         end
         
         % Save point spread function
-        writenii('./psf.nii', abs(psf), ...
+        writenii([args.wd '/psf.nii'], abs(psf), ...
             'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
         fprintf('\nPoint spread function saved to psf.nii');
         
@@ -401,6 +401,7 @@ end
 function [raw,info] = formatpfile(searchstr)
 
     [raw,h] = readpfile(searchstr);
+    d = dir(searchstr);
     
     % Create info struct based on header info
     info = struct(...
@@ -414,7 +415,8 @@ function [raw,info] = formatpfile(searchstr)
         'dt',       4, ... % Sampling period (usec)
         'dim',      h.image.dim_X, ... % Image x/y dimension
         'fov',      h.image.dfov/10, ... % FOV (cm)
-        'slthick',  h.image.slthick/10 ... % Slice Thickness (cm)
+        'slthick',  h.image.slthick/10, ... % Slice Thickness (cm)
+        'wd',       d(1).folder ... % Working directory
         );
     
     % Reshape data
