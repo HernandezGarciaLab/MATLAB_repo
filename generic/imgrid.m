@@ -1,9 +1,25 @@
-function [X,Y,Z] = imgrid(fov,dim)
-% fov: 3-element vector containing x,y,z field of view
-% dim: 3-element vector containing x,y,z dimensions
-x = linspace(-fov(1)/2,fov(1)/2,dim(1));
-y = linspace(-fov(2)/2,fov(2)/2,dim(2));
-z = linspace(-fov(3)/2,fov(3)/2,dim(3));
-[X,Y,Z] = ndgrid(x,y,z);
+function varargout = imgrid(fov,dim)
+% fov: n-element vector containing field of view
+% dim: n-element vector containing dimensions
+
+if numel(fov) ~= numel(dim)
+    error('fov and dim must be same size');
+end
+
+if nargout ~= numel(fov)
+    error('number of arguments out must be equal to number of dimenstions in fov');
+end
+
+outcode = 'varargout{1}';
+incode = 'linspace(-fov(1)/2,fov(1)/2,dim(1))';
+varargout = cell(1,nargout);
+if numel(fov) > 1
+    for n = 2:numel(fov)
+        outcode = [outcode, ',', sprintf('varargout{%d}',n)];
+        incode = [incode,',',sprintf('linspace(-fov(%d)/2,fov(%d)/2,dim(%d))',n,n,n)];
+    end
+end
+eval(sprintf('[%s] = ndgrid(%s);',outcode,incode));
+
 end
 

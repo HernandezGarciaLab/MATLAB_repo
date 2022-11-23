@@ -8,7 +8,7 @@ function [Sk,Si] = kspace3dphantom(k,x,varargin)
 %   sampling points of digital 3d phantoms using method described in Guan 
 %   Koay, C., Sarlls, J.E., Özarslan, E., (2007) Three-dimensional
 %   analytical magnetic resonance imaging phantom in the Fourier domain,
-%   Magn. Reson. Med. 58:2:430-436, https://doi.org/10.1002/mrm.21292
+%   Magn. Reson. Med. 58(2):430-436, https://doi.org/10.1002/mrm.21292
 %
 %
 % Notes:

@@ -287,6 +287,7 @@ function im = recon3dflex(varargin)
         'fov', fov, 'basis', {'rect'}, 'nufft', nufft_args(:)');
     
     % Create density compensation using pipe algorithm
+    fprintf('\nCreating density compensation...');
     dcf = pipedcf(Gm.Gnufft,args.itrmax);
     
     % Build t2 relaxation map into Gmri object
@@ -521,34 +522,4 @@ function t2 = fitt2(raw,navpts,te,dt)
     % Get average R2 value
     t2 = mean(t2(~isinf(t2(:))));
 
-end
-
-%% pipedcf function definition
-function Wi = pipedcf(G,itrmax)
-
-    % Initialize weights to 1 (psf)
-    Wi = ones(size(G,1),1);
-    fprintf('\nCreating density compensation... ');
-    msg_iprog = '';
-    
-    % Loop through iterations
-    for itr = 1:itrmax
-        
-        % Print progress
-        if ~isempty(msg_iprog)
-            fprintf(repmat('\b',1,length(msg_iprog)));
-        end
-        msg_iprog = sprintf('(itr %d/%d)',itr,itrmax);
-        fprintf(msg_iprog);
-        
-        % Pipe algorithm: W_{i+1} = W_{i} / (G * (G' * W_{i}))
-        d = real( G.arg.st.interp_table(G.arg.st, ...
-            G.arg.st.interp_table_adj(G.arg.st, Wi) ) );
-        Wi = Wi ./ d;
-        
-    end
-    
-    % Normalize
-    Wi = Wi / sum(abs(Wi));
-    
 end
