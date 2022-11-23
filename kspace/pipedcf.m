@@ -42,7 +42,7 @@ function Wi = pipedcf(G,itrmax)
     end
     
     % If G is a Gmri object, use its Gnufft object
-    if isfield(G,'Gnufft')
+    if isfield(G.arg,'Gnufft')
         G = G.Gnufft;
     end
     
