@@ -48,6 +48,14 @@ function im_lb = lbview(im, varargin)
 %       - slice dimension of brain
 %       - either 'saggital','coronal', or 'axial'
 %       - default is 'axial'
+%   - 'zoomFactor'
+%       - option to zoom into image along all dimensions
+%       - float/double scalar value describing amount to zoom by
+%       - default is 1
+%   - 'resFactor'
+%       - option to resample image along all dimensions
+%       - float/double scale value describin amount to resample by
+%       - default is 1
 %   - 'caxis':
 %       - color scale axis bounds
 %       - float/double 1x2 array decribing minimum and maximum intensity of
@@ -79,6 +87,8 @@ function im_lb = lbview(im, varargin)
         'logscale',     0, ...
         'nrows',        'auto', ...
         'orientation',  'axial', ...
+        'zoomFactor',   1, ...
+        'resFactor',    1, ...
         'caxis',        'auto', ...
         'colormap',     gray(64), ...
         'colorbar',     1 ...
@@ -115,6 +125,18 @@ function im_lb = lbview(im, varargin)
     % Select single frame
     if size(im,4) > 1
         im = im(:,:,:,args.frame);
+    end
+    
+    % If  there is a zoom/res factor, interpolate & extrapolate the image
+    if any([args.resFactor;args.zoomFactor] ~= 1)
+        [X0,Y0,Z0] = imgrid([size(im,1),size(im,2),size(im,3)], ...
+            [size(im,1),size(im,2),size(im,3)]);
+        imgridder = griddedInterpolant(X0,Y0,Z0,im,'linear','none');
+        
+        [X,Y,Z] = imgrid([size(im,1),size(im,2),size(im,3)]/args.zoomFactor, ...
+            [size(im,1),size(im,2),size(im,3)]*args.resFactor);
+        
+        im = imgridder(X,Y,Z);
     end
     
     % Select slices
