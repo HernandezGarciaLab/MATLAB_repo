@@ -118,12 +118,13 @@ function [Sk,Si] = kspace3dphantom(k,x,varargin)
        
         % Calculate kspace signal
         if size(k,2) == 3
-            k(vecnorm(k,2,2)==0,:) = eps;
-            ktd = k*d';
-            K = vecnorm(k*A'.*abc,2,2);
-            Sk = Sk + ...
+            kn0 = k(vecnorm(k,2,2)~=0,:);
+            ktd = kn0*d';
+            K = vecnorm(kn0*A'.*abc,2,2);
+            Sk(vecnorm(k,2,2)~=0) = Sk(vecnorm(k,2,2)~=0) + ...
                 p * abs(det(A')) * prod(abc) * exp(-1i * 2*pi*ktd) .* ...
                 ( sin(2*pi*K) - 2*pi*K.*cos(2*pi*K) ) ./ (2*pi^2*K.^3);
+            Sk(vecnorm(k,2,2)==0) = Sk(vecnorm(k,2,2)==0) + p*4/3*pi*prod(abc);
         elseif ~isempty(k)
             error('k must be an Nx3 matrix');
         end

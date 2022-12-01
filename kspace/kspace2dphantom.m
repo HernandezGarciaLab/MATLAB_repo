@@ -108,12 +108,15 @@ function [Sk,Si] = kspace2dphantom(k,x,varargin)
        
         % Calculate kspace signal
         if size(k,2) == 2
-            k(vecnorm(k,2,2)==0,:) = eps;
-            ktd = k*d';
-            K = vecnorm(k*A'.*ab,2,2);
-            Sk = Sk + ...
+            kn0 = k(vecnorm(k,2,2)~=0,:);
+            ktd = kn0*d';
+            K = vecnorm(kn0*A'.*ab,2,2);
+            Sk(vecnorm(k,2,2)~=0) = Sk(vecnorm(k,2,2)~=0) + ...
                 p * abs(det(A')) * prod(ab) * exp(-1i * 2*pi*ktd) .* ...
                 besselj(1, 2 * pi * K) ./ (pi * K);
+            Sk(vecnorm(k,2,2)~=0) = Sk(vecnorm(k,2,2)~=0) + ...
+                p * abs(det(A')) * prod(ab) * exp(-1i * 2*pi*ktd) .* ...
+                (1 - pi^2/2*K.^2 + pi^4/12*K.^4); 
         elseif ~isempty(k)
             error('k must be an Nx2 matrix');
         end
