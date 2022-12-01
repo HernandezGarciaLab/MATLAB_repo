@@ -34,8 +34,7 @@ function out = ifftc(in,dim)
 % Function output:
 %   - out:
 %       - inverse fourier transformed data
-%       - float/double matrix containing data at uniformly spaced
-%           frequencies
+%       - float/double matrix containing data at uniformly spaced points
 %
 
     % Set default dimensions
