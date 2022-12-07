@@ -1,5 +1,5 @@
 function out = fftc(in,dim)
-% function out = ifftc(in,dim)
+% function out = fftc(in,dim)
 %
 % Part of umasl project by Luis Hernandez-Garcia and David Frey
 % @ University of Michigan 2022
