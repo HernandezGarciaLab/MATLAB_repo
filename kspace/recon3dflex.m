@@ -121,12 +121,6 @@ function im = recon3dflex(varargin)
 %       - if 'fit' is passed, recon will try to estimate an average t2
 %       - if left empty, no t2 will not be considered in signal model
 %       - default is empty
-%   - 'phantom'
-%       - analytical phantom for trajectory image simulation
-%       - either an Nx3 ellipsoid parameter matrix, or a string describing
-%           which phantom to use ('shepp-logan', 'modified-shepp-logan', or
-%           'yu-ye-wang'), type 'help kspace3dphantom' for more info
-%       - default is 'modified-shepp-logan'
 %   - 'nworkers'
 %       - number of workers to use in parallel pool
 %       - integer describing number of workers
@@ -163,7 +157,6 @@ function im = recon3dflex(varargin)
         'nramp',        [], ... % Number of ramp points in spiral traj
         'pdorder',      -1, ... % Order of phase detrending poly fit
         't2',           [], ... % Option to perform t2 compensation
-        'phantom',      'modified-shepp-logan', ... % Phantom for trajectory sim image
         'nworkers',     feature('numcores'), ... % Number of workers to use in parpool
         'scaleoutput',  1 ... % Option to scale output to full dynamic range
         );
@@ -301,14 +294,6 @@ function im = recon3dflex(varargin)
     % Reconstruct point spread function
     psf = Gm' * (dcf.*ones(numel(ks(:,1,:,:)),1));
     
-    if ~isempty(args.phantom)
-        % Reconstruct phantom from trajectory
-        raw_phantom = kspace3dphantom(kspace,[],'size',fov, ...
-            'e',args.phantom);
-        phantom_sim = Gm' * (dcf.*raw_phantom);
-        phantom_sim = reshape(phantom_sim,dim);
-    end
-    
     % Initialize output array and progress string
     im = zeros([dim,info.ncoils,length(args.frames)]);
     fprintf('\nReconning image... ');
@@ -392,13 +377,6 @@ function im = recon3dflex(varargin)
         writenii([info.wd '/psf.nii'], abs(psf), ...
             'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
         fprintf('\nPoint spread function saved to psf.nii');
-        
-        % Save simulation if performed
-        if ~isempty(args.phantom)
-            writenii([info.wd '/phantom.nii'], abs(phantom_sim), ...
-                'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
-            fprintf('\nPhantom trajectory simulation saved to phantom.nii');
-        end
         
         % Clear im so it won't be returned
         clear im;
