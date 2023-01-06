@@ -31,6 +31,7 @@ function [out,bitpix] = niidatatype(in)
 % Example:
 %   'uint8' = niidatatype(2)
 %   4 = niidatatype('int16')
+%
 
     % Nifti datatypes table
     niitypes = { ...

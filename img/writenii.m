@@ -63,7 +63,7 @@ function writenii(niifile_name,im,varargin)
         'h',            [], ... % Raw data
         'fov',          [], ... % Info structure
         'tr',           [], ... % Search string for Pfile
-        'precision',    'int8', ... % datatype precision
+        'precision',    'int16', ... % datatype precision
         'doscl',        1 ... % Kspace distance tolerance
         );
     
