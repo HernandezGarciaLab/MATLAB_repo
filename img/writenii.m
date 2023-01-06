@@ -60,11 +60,11 @@ function writenii(niifile_name,im,varargin)
 
     % Define default arguments
     defaults = struct(...
-        'h',            [], ... % Raw data
-        'fov',          [], ... % Info structure
-        'tr',           [], ... % Search string for Pfile
+        'h',            [], ... % header
+        'fov',          [], ... % fov (cm)
+        'tr',           [], ... % TR (s)
         'precision',    'int16', ... % datatype precision
-        'doscl',        1 ... % Kspace distance tolerance
+        'doscl',        1 ... % option to scale
         );
     
     % Parse through variable inputs using matlab's built-in input parser
