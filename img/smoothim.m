@@ -104,7 +104,7 @@ function im_smooth = smoothim(im,varargin)
     K = K / sum(K(:));
     
     % Convolve
-    im_smooth = abs( ifft3c( fft3c(im) .* fft3c(K) ) );
+    im_smooth = abs( ifftc( fftc(im) .* fftc(K) ) );
     im_smooth = im_smooth .* (sum(im,1:3) ./ sum(im_smooth,1:3));
 
     % Save results that aren't returned to nifti:

@@ -96,7 +96,7 @@ function [im,h] = readnii(niifile_name)
 
     % Read in data
     fseek(niifile,h.vox_offset,'bof');
-    im = fread(niifile, prod(h.dim(2:5)), 'short')';
+    im = fread(niifile, prod(h.dim(2:5)), niidatatype(h.datatype))';
     fclose(niifile);
     
     % Reshape and rescale data

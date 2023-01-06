@@ -45,6 +45,10 @@ function writenii(niifile_name,im,varargin)
 %       - if empty, tr from header will be used; if header is also empty,
 %           default of 1000 ms will be used
 %       - default is empty
+%   - 'precision':
+%       - precision of data type
+%       - C/Fortran string format (i.e. 'float32' or 'int16')
+%       - default is 'int16' (signed 16 bit integer)
 %   - 'doscl':
 %       - option to scale output to full dynamic range in save file
 %       - boolean integer (0 or 1) describing whether or not to use
@@ -56,10 +60,11 @@ function writenii(niifile_name,im,varargin)
 
     % Define default arguments
     defaults = struct(...
-        'h',        [], ... % Raw data
-        'fov',      [], ... % Info structure
-        'tr',       [], ... % Search string for Pfile
-        'doscl',    1 ... % Kspace distance tolerance
+        'h',            [], ... % Raw data
+        'fov',          [], ... % Info structure
+        'tr',           [], ... % Search string for Pfile
+        'precision',    'int8', ... % datatype precision
+        'doscl',        1 ... % Kspace distance tolerance
         );
     
     % Parse through variable inputs using matlab's built-in input parser
@@ -85,7 +90,8 @@ function writenii(niifile_name,im,varargin)
     
     % Define header
     if isempty(args.h)
-        h = makeniihdr('datatype', 4, 'bitpix', 16);
+        [datatype,bitpix] = niidatatype(args.precision);
+        h = makeniihdr('datatype', datatype, 'bitpix', bitpix);
         h.dim(1) = ndims(im);
         h.pixdim(1) = ndims(im);
         if isempty(args.fov)
@@ -104,6 +110,7 @@ function writenii(niifile_name,im,varargin)
         if isempty(args.tr)
             args.tr = h.pixdim(5);
         end
+        args.precision = niidatatype(h.datatype);
     end
     
     % Set fov and tr
@@ -112,12 +119,12 @@ function writenii(niifile_name,im,varargin)
 
     % Determine scaling factors for saving full dynamic range
     if args.doscl
-        DACFactor = 2^15-1;
+        maxval = 2^(h.bitpix-1)-1;
         y = im;
         y_min = min(y,[],'all'); y_max = max(y,[],'all');
-        m = 2*DACFactor/(y_max - y_min);
-        x = m*y - (m*y_min + DACFactor);
-        h.scl_inter = (m*y_min + DACFactor)/m;
+        m = 2*maxval/(y_max - y_min);
+        x = m*y - (m*y_min + maxval);
+        h.scl_inter = (m*y_min + maxval)/m;
         h.scl_slope = 1/m;
         im = x;
     else
@@ -178,9 +185,9 @@ function writenii(niifile_name,im,varargin)
     % Write data
     fseek(niifile, h.vox_offset, 'bof');
     if h.dim(5) >1
-        fwrite(niifile, im(:)', 'short');
+        fwrite(niifile, im(:)', args.precision);
     else
-        fwrite(niifile, im(:), 'short');
+        fwrite(niifile, im(:), args.precision);
     end
     
     fclose(niifile);
