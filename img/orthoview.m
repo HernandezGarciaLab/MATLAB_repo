@@ -170,6 +170,7 @@ function im_ortho = orthoview(im,varargin)
 
         % Clear im_ortho if not returned so it won't be printed to console
         clear im_ortho
+        axis image
     end
     
 end
