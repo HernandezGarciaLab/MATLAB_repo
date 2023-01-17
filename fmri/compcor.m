@@ -1,5 +1,5 @@
-function [A_noise,im_clean] = compcor(im,varargin)
-% function [A_noise,im_clean] = compcor(im,varargin)
+function [im_clean,A_noise] = compcor(im,varargin)
+% function [im_clean,A_noise] = compcor(im,varargin)
 %
 % Part of umasl project by Luis Hernandez-Garcia and David Frey
 % @ University of Michigan 2022
@@ -31,20 +31,22 @@ function [A_noise,im_clean] = compcor(im,varargin)
 %       - default is 'timeseries_mag'
 %
 % Variable input arguments (type 'help varargin' for usage info):
-%   - 'stdthresh':
-%       - threshold of std for noisy pixels
-%       - double/float describing percentile (fraction) of std
-%       - default is 0.9
+%   - 'thresh_std':
+%       - noise masking threshold
+%       - float/double in range [0 100] describing top percentage of noise
+%           to reject based on temporal standard deviation
+%       - default is 30
+%   - 'thresh_rho':
+%       - regressor correlation rejection threshold
+%       - float/double in range [0 1] describing maximum allowed
+%           correlation between passed in design matrix and noise
+%           regressors
+%       - default is 0.5
 %   - 'N':
 %       - number of principal component regressors to return
 %       - integer describing number of components
 %       - default is 10
-%   - 'mask'
-%       - image mask
-%       - str describing nii file or binary array of image dimensions
-%       - if left empty, image will not be masked
-%       - default is empty, which results in a full mask
-%   - 'A'
+%   - 'A':
 %       - design matrix for fmri experiment (before noise regressors)
 %       - 2D float/double array containing regressors of size (number of
 %           temporal frames x number of regressors)
@@ -53,52 +55,29 @@ function [A_noise,im_clean] = compcor(im,varargin)
 %           correlated enough, they will be removed from A_noise
 %       - A_noise will not contain regressors from A
 %       - default is empty
-%   - 'show'
-%       - option to show figures for each step of CompCor
-%       - boolean integer (0 or 1) describing whether or not to use
+%   - 'show':
+%       - option to show images
+%       - boolean integer (0 or 1) describing whether or not to show
 %       - default is 0
-%   - 'tr'
-%       - temporal frame repetition time of timeseries
-%       - double/float describing tr (ms)
-%       - not necessary if reading timeseries from file
-%       - must specify (no default) if im is passed as image array
-%   - 'fov'
-%       - field of view of image
-%       - double/float array of size 1x3 describing FOV (cm)
-%       - not necessary if reading timeseries from file
-%       - must specify (no default) if im is passed as image array
-%   - 'tol'
-%       - image zero detection tolerance
-%       - double/float scalar value describing 0 value roundoff
-%       - default is 1e-3
-%   - 'scaleoutput'
-%       - option to scale nii files to full dynamic range
-%       - boolean integer (0 or 1) to use or not
-%       - type 'help writenii' for more information
-%       - default is 1
 %
 % Function output:
-%   - A_noise:
-%       - constructed design matrix of noise regressors
-%       - double/float column vector of (nframes x N)
 %   - im_clean:
 %       - image after removing principal noise components
 %       - float/double array of same dimensions as im
 %       - if not returned, im_clean will be saved to compcorclean.nii
 %       - if returned, im_clean will not be saved to file
+%   - A_noise:
+%       - constructed design matrix of noise regressors
+%       - double/float column vector of (nframes x N)
 %
 
     % Define default arguments
     defaults = struct(...
-        'stdthresh',    0.9, ... % std threshold for noise ROI
+        'thresh_std',   30, ... % Top percent of std to threshold
+        'thresh_rho',   0.5, ... % Highest allowed corellation of noise to regressor
         'N',            10, ... % Number of components to analyze
-        'mask',         [], ... % Mask image
-        'tol',          1e-3, ... % Zero value tolerance        
         'A',            [], ... % Design matrix for fmri experiment
-        'show',         0,  ... % Option to show figures
-        'tr',           [], ... % TR (ms) (if im is not read from file)
-        'fov',          [], ... % FOV (cm) (if im is not read from file)
-        'scaleoutput',  1 ... % Option to scale output to full dynamic range
+        'show',         0 ...   % option to show images
         );
     
     % Start timer
@@ -117,68 +96,84 @@ function [A_noise,im_clean] = compcor(im,varargin)
 
     % If im is a nii file name, read in from file
     if ischar(im)
-        [im,h] = readnii(im);
-        args.tr = h.pixdim(5);
-        args.fov = h.dim(2:4) .* h.pixdim(2:4);
-    elseif (isempty(args.tr) || isempty(args.fov)) && nargout < 2
-        error('Must specify tr and fov if image is not read from file');
+        im = readnii(im);
     end
     
-    % Get dimensions
-    dim = [size(im,1),size(im,2),size(im,3)];
-    nframes = size(im,4);
+    % Get std map & mask
+    sigma = std(im,[],4);
+    sigma_ordered = sort(sigma(sigma(:)>0));
+    Nintgrl = cumsum(sigma_ordered)/sum(sigma_ordered) * 100;
+    thval = sigma_ordered(find(Nintgrl>100-args.thresh_std,1));
+    msk = 1*(sigma > thval);
     
-    % If mask is a nii file name, read in from file
-    if ischar(args.mask) % if mask points to a file name
-        args.mask = readnii(args.mask);
+    if args.show
+        % Show mask and std map
+        cfigopen('CompCor std map');
+        subplot(2,1,1)
+        lbview(sigma)
+        title('Standard deviation');
+        subplot(2,1,2);
+        lbview(msk)
+        title(sprintf('Mask (top %.1f%% of std)',args.thresh_std));
     end
     
-    % Check dimensions of mask
-    if ~isempty(args.mask) && ~isequal(size(args.mask),dim)
-        warning('Mask size does not match image size, proceeding without mask');
-        args.mask = ones(dim);
+    % Get eigenvalues and noise components from masked image
+    im_msk = msk.*im;
+    [~,s,v] = svd(reshape(im_msk,[],size(im,4)),0);
+    A_noise = v(:,1:args.N);
+    A_noise = A_noise - mean(A_noise,1); % mean center
+    
+    if args.show
+        % Show eigenvalues and noise components
+        cfigopen('CompCor noise components');
+        subplot(2,1,1)
+        plot(diag(s))
+        title('Eigenvalues')
+        subplot(2,1,2)
+        plot(A_noise)
+        title(sprintf('First %d noise components',args.N));
     end
     
-    % Normalize and round mask
-    args.mask = (args.mask - min(args.mask(:))) / ...
-        (max(args.mask(:)) - min(args.mask(:)));
-    args.mask = round(args.mask);
-    
-    % Determine im with noisy ROI masked
-    tstd = std(im,[],4); % temporal standard deviation
-    [~,p] = sort(tstd(:)); % sort the std and store indicies
-    if ~isempty(args.mask)
-        p(args.mask(p) == 0) = []; % ignore inidices outside mask
-    else
-        p(tstd(p) < args.tol) = []; % ignore indicies where std = 0
-    end
-    im_noise = im .* (tstd >= tstd(p(round(args.stdthresh*length(p)))));
-    
-    % Decompose and store singular values of noise
-    [~,~,v] = svd(reshape(im_noise,prod(dim),nframes),0);
-    A_noise = v(:,1:args.N) - mean(v(:,1:args.N),1);
-    
-    % Remove correlated regressors if design matrix is passed
     if ~isempty(args.A)
+        % Decorrelate noise components from the design matrix
+        badinds = [];
         for n = 1:args.N
-            r = A_noise(:,n) - args.A*pinv(args.A)*A_noise(:,n);
-            A_noise(:,n) = r - mean(r);
+            design = args.A*pinv(args.A) * A_noise(:,n);
+            rho = corrcoef(A_noise(:,n),design);
+            if abs(rho(1,2)) > args.thresh_rho
+                badinds = [badinds; n];
+            end
         end
+        A_noise(:,badinds) = [];
     end
     
-    % Estimate noise and remove from clean timeseries
-    beta_noise = pinv(A_noise) * reshape(permute(im,[4 1:3]),[],prod(dim));
-    im_clean = im - ...
-        permute(reshape(A_noise*beta_noise, [nframes,dim]),[2:4,1]);
+    % Clean up timeseries by removing the noise
+    bhat = pinv(A_noise) * reshape(im,[],size(im,4))';
+    im_clean = im - reshape((A_noise*bhat)',size(im));
     
-    % Save data to files
-    if nargout < 2
-        % Save cleaned image      
-        writenii('./compcorclean.nii',im_clean, ...
-            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
-        fprintf('\nCleaned timeseries image saved to compcorclean.nii');
-    else
-        fprintf('\nImages will not be saved to file since sub image is returned');
+    if args.show
+        % Show std before and after
+        cfigopen('CompCor noise reduction');
+        subplot(2,2,1)
+        lbview(std(im,[],4));
+        title('Standard deviation (before)')
+        subplot(2,2,2)
+        lbview(std(im_clean,[],4));
+        title('Standard deviation (after)');
+        
+        % Calculate and show BIC for noise model
+        RSS = sum(im_clean.^2,4);
+        n = size(im_clean,4);
+        k = size(A_noise,2);
+        BIC = n * log(RSS/n) + k * log(n);
+        BIC = BIC .* msk;
+        BIC(BIC==0) = NaN;
+        subplot(2,2,3);
+        histogram(BIC(:),50);
+        title(sprintf('BIC histogram, mean = %.2f', mean(BIC(~isnan(BIC(:))))));
+        subplot(2,2,4);
+        lbview(BIC);
+        title('voxel-wise BIC');
     end
     
     % Save and print elapsed time
