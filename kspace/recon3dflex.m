@@ -282,6 +282,7 @@ function im = recon3dflex(varargin)
     % Create density compensation using pipe algorithm
     fprintf('\nCreating density compensation...');
     dcf = pipedcf(Gm.Gnufft,args.itrmax);
+    W = Gdiag(dcf(:)./Gm.arg.basis.transform);
     
     % Build t2 relaxation map into Gmri object
     if ~isempty(args.t2)
@@ -292,13 +293,20 @@ function im = recon3dflex(varargin)
     
 %% Reconstruct image using NUFFT
     % Reconstruct point spread function
-    psf = Gm' * (dcf.*ones(numel(ks(:,1,:,:)),1));
+    psf = Gm' * W * ones(numel(ks(:,1,:,:)),1);
     
     % Initialize output array and progress string
     im = zeros([dim,info.ncoils,length(args.frames)]);
     fprintf('\nReconning image... ');
     msg_fprog = '';
     savef = 1;
+    
+    % Store smap
+    if isempty(args.smap)
+        smap = ones([dim,info.ncoils]);
+    else
+        smap = args.smap;
+    end
     
     % Loop through frames
     for framen = args.frames
@@ -313,37 +321,24 @@ function im = recon3dflex(varargin)
         % Loop through coils
         parfor (coiln = 1:info.ncoils, args.nworkers)
             % Recon using adjoint NUFFT operation
+            S = Gdiag(smap(:,:,:,coiln));
             data = reshape(raw(framen,:,:,:,coiln),[],1);
-            im_cur = reshape(Gm' * (dcf.*data), dim);
-            im(:,:,:,coiln,savef) = im_cur;
+            im_cur = (Gm * S)' * W * data;
+            im(:,:,:,coiln,savef) = reshape(im_cur,dim);
         end
         
         % Increase saved frame index
         savef = savef+1;
     end
     
-    % Save first frame coil images for smap construction
+    % Combine coils and save first coil image
     imf1coils = im(:,:,:,:,1);
-    
-    if info.ncoils > 1 && isempty(args.smap)
-        % Combine coils using RMS
-        fprintf('\nUsing RMS to combine coils, this may be inaccurate.');
-        im = sqrt( mean(im.^2,4) );
-        
-    elseif info.ncoils > 1 && ~isempty(args.smap)
-        % Combine coils using passed in sensitivity map
-        fprintf('\nUsing sensitivity map to combine coils');
-        im = div0( sum( conj(args.smap) .* im, 4), ...
-            sum( abs(args.smap).^2, 4) );
-        im = im .* (sum(abs(args.smap),4) > args.tol);
-        
+    if isempty(args.smap)
+        fprintf('Combining coils using RMS since no sense map was passed\n')
+        im = squeeze(sqrt(sum(im.^2,4)));
     else
-        % Tell user only 1 coils will be used
-        fprintf('\nNo coil combination required since using body coil');
+        im = squeeze(sum(im,4));
     end
-    
-    % Reduce output dimensions
-    im = squeeze(im);
         
     % Save results that aren't returned to nifti:
     if nargout < 1
