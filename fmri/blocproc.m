@@ -1,5 +1,5 @@
-function blockproc(dataname, varargin)
-% function blockproc(dataname, varargin)
+function blocproc(dataname, varargin)
+% function blocproc(dataname, varargin)
 %
 % Part of umasl project by Luis Hernandez-Garcia and David Frey
 % @ University of Michigan 2022
@@ -67,7 +67,7 @@ function blockproc(dataname, varargin)
 %       - range of zscores to show
 %       - 1x2 float/double array describing range of zscores
 %       - default is [1,5]
-%   - 'viewtype':
+%   - 'viewmode':
 %       - type of view to display results in
 %       - string - either 'lbview' or 'orthoview'
 %       - default is 'lbview'
@@ -92,7 +92,7 @@ function blockproc(dataname, varargin)
         'realignmode',  0, ...
         'ncompcor',     10, ...
         'zthresh',      [1,5], ...
-        'viewtype',     'lbview', ...
+        'viewmode',     'lbview', ...
         'viewargs',     {{}}, ...
         'savepng',      0 ...
         );
@@ -204,7 +204,7 @@ function blockproc(dataname, varargin)
 
     % show
     cfigopen(savename)
-    overlayimages(base,[],zmap,args.zthresh,args.viewtype,args.viewargs{:})
+    overlayimages(base,[],zmap,args.zthresh,args.viewmode,args.viewargs{:})
     title([savename,' activation zscores'], 'Interpreter', 'none')
 
     % cd back
@@ -213,7 +213,7 @@ function blockproc(dataname, varargin)
     % save image
     if args.savepng
         curP = get(gcf,'Position');
-        set(gcf,'Position',[0,0,500,800]);
+        set(gcf,'Position',[0,0,800,700]);
         F = getframe(gcf);
         im = frame2im(F);
         [imind,cm] = rgb2ind(im,256);
