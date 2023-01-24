@@ -176,7 +176,7 @@ function blocproc(dataname, varargin)
             im = sub;
             args.dosub = 0;
         else
-            args.order = 1;
+            order = 1;
         end
     end
 
@@ -189,23 +189,27 @@ function blocproc(dataname, varargin)
 
     % smooth data
     for n=1:nframes
-        im(:,:,:,n) = smooth3(squeeze(im(:,:,:,n)),'gaussian');
+        im(:,:,:,n) = smooth3(squeeze(im(:,:,:,n)),'gaussian', 5*[1 1 1]);
     end
 
     % create contrast matrix
-    C = zeros(3,size(A,2));
-    for n=1:3, C(n,n) = 1; end
+    C = zeros(2,size(A,2));
+    for n=1:2, C(n,n) = 1; end
 
     % use spmJr to perform regression
     zmap = spmJr(im,A,'C',C,'mask',mask,'fov',fov);
 
     % use only second regressor (stim. activation)
-    zmap = squeeze(zmap(:,:,:,2));
-
+    zmap = squeeze(zmap(:,:,:,1:2));
+    
+    
     % show
     cfigopen(savename)
-    overlayimages(base,[],zmap,args.zthresh,args.viewmode,args.viewargs{:})
+    overlayimages(base,[],zmap(:,:,:,1),args.zthresh,args.viewmode,args.viewargs{:})
     title([savename,' activation zscores'], 'Interpreter', 'none')
+
+    h.dim(5) = 2;
+    writenii('Zscores.nii',zmap, 'hdr', h);
 
     % cd back
     cd(curdir)

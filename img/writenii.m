@@ -27,7 +27,7 @@ function writenii(niifile_name,im,varargin)
 %       - no default, necessary argument
 %
 % Variable input arguments (type 'help varargin' for usage info):
-%   - 'h':
+%   - 'hdr':
 %       - manual nifti image header
 %       - nifti header structure as made with makeniihdr()
 %       - if header is passed with other variable inputs, variable inputs
@@ -60,7 +60,7 @@ function writenii(niifile_name,im,varargin)
 
     % Define default arguments
     defaults = struct(...
-        'h',            [], ... % header
+        'hdr',            [], ... % header
         'fov',          [], ... % fov (cm)
         'tr',           [], ... % TR (s)
         'precision',    'int16', ... % datatype precision
@@ -89,7 +89,7 @@ function writenii(niifile_name,im,varargin)
     dim = [size(im,1),size(im,2),size(im,3)];
     
     % Define header
-    if isempty(args.h)
+    if isempty(args.hdr)
         [datatype,bitpix] = niidatatype(args.precision);
         h = makeniihdr('datatype', datatype, 'bitpix', bitpix);
         h.dim(1) = ndims(im);
@@ -100,10 +100,10 @@ function writenii(niifile_name,im,varargin)
         if isempty(args.tr)
             args.tr = 1000;
         end
-    elseif ~isequal(args.h.dim(2:5), [dim,size(im,4)])
+    elseif ~isequal(args.hdr.dim(2:5), [dim,size(im,4)])
         error('header dimensions do not match array size');
     else % if header is passed
-        h = args.h;
+        h = args.hdr;
         if isempty(args.fov)
             args.fov = h.dim(2:4).*h.pixdim(2:4);
         end
