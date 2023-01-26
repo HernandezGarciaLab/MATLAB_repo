@@ -288,9 +288,18 @@ function im = recon3dflex(varargin)
         Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2,1);
     end
     
+    % Correct smap for single-coil data
+    if isempty(args.smap) && info.ncoils == 1
+        args.smap = ones(dim);
+    end
+    
 %% Reconstruct image using NUFFT
     % Reconstruct point spread function
     psf = Gm' * reshape(W * ones(numel(ks(:,1,:,:)),1), [], 1);
+        
+    % Make quadratic regularizer
+    R = Reg1(ones(dim), 'beta', 2^-12 * numel(ks(:,1,:,:)));
+    C = block_fatrix({R.C}, 'type', 'col');
     
     % If smap is empty, recon frame 1 coil images for smap construction
     if isempty(args.smap)
@@ -310,7 +319,7 @@ function im = recon3dflex(varargin)
             % Recon using pcg (iterative) without sensitivity encoding
             if args.niter > 0
                 im_pcg = ir_wls_init_scale(Gm, data, im_cp);
-                im_pcg = qpwls_pcg1(im_pcg, Gm, 1, data_k, C, ...
+                im_pcg = qpwls_pcg1(im_pcg, Gm, 1, data, C, ...
                     'niter', args.niter);
                 im(:,:,:,coiln) = reshape(im_pcg, dim);
             
@@ -356,10 +365,6 @@ function im = recon3dflex(varargin)
         % Initialize image
         im = zeros([dim, length(args.frames)]);
         fprintf('\nReconning images...');
-        
-        % make quadratic regularizer?
-        R = Reg1(ones(dim), 'beta', 2^-12 * numel(ks(:,1,:,:)));
-        C = block_fatrix({R.C}, 'type', 'col');
         
         % Loop through frames
         savef = 1;
