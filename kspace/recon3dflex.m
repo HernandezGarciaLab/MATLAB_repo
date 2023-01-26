@@ -4,8 +4,8 @@ function im = recon3dflex(varargin)
 % Part of umasl project by Luis Hernandez-Garcia and David Frey
 % @ University of Michigan 2022
 %
-% Description: Function to reconstruct images from *3dflex ASL
-%   sequence using 3D NUFFT with Pipe & Menon Density compensation
+% Description: Function to reconstruct images from *3dflex ASL sequence
+%   using Model-based SENSE recon with Pipe & Menon Density compensation
 %
 %
 % Notes:
@@ -162,7 +162,7 @@ function im = recon3dflex(varargin)
     % Start timer
     t = tic;
     
-%% Set up recon
+%% Set up data, arguments and info
     % Parse through variable inputs using matlab's built-in input parser
     args = vararginparser(defaults,varargin{:});
     
@@ -188,6 +188,7 @@ function im = recon3dflex(varargin)
         args.frames = 1:info.nframes;
     end
     
+%% Process Trajectory
     % Get un-transformed kspace trajectory and view transformations
     ks_0 = load([info.wd '/ktraj_cart.txt']);
     kviews = load([info.wd '/kviews.txt']);
@@ -195,7 +196,6 @@ function im = recon3dflex(varargin)
     % Determine trajectory type based on kz encoding fractions
     isSOS = any(kviews(:,3) < 1);
     
-%% Process Trajectory
     % Determine nramp and navpoints from 1st platter envelope
     navpts = find(vecnorm(ks_0,2,2) < args.tol);
     navpts(navpts > info.ndat*3/4) = []; % reject navpts in first 1/4
@@ -253,7 +253,7 @@ function im = recon3dflex(varargin)
     ti([1:args.nramp info.ndat-args.nramp:info.ndat],:,:) = [];
     info.ndat = info.ndat - 2*args.nramp;
     
-%% Set up NUFFT
+%% Set up reconstruction
     % Vectorize fov/dim and apply interpolation factors
     fov = info.fov*ones(1,3) / args.zoomfactor;
     dim = round(info.dim*ones(1,3) * args.resfactor);
@@ -275,11 +275,15 @@ function im = recon3dflex(varargin)
         'minmax:kb'};
     Gm = Gmri(kspace, true(dim), ...
         'fov', fov, 'basis', {'rect'}, 'nufft', nufft_args(:)');
+    niter = args.niter; % extract to avoid broadcasting args into parfor
     
     % Create density compensation using pipe algorithm
     fprintf('\nCreating density compensation...');
     dcf = pipedcf(Gm.Gnufft,15);
     W = Gdiag(dcf(:)./Gm.arg.basis.transform);
+    
+    % Reconstruct point spread function
+    psf = Gm' * reshape(W * ones(numel(ks(:,1,:,:)),1), [], 1);
     
     % Build t2 relaxation map into Gmri object
     if ~isempty(args.t2)
@@ -293,56 +297,11 @@ function im = recon3dflex(varargin)
         args.smap = ones(dim);
     end
     
-%% Reconstruct image using NUFFT
-    % Reconstruct point spread function
-    psf = Gm' * reshape(W * ones(numel(ks(:,1,:,:)),1), [], 1);
-        
-    % Make quadratic regularizer
+    % Make quadratic regularizer for PCG recon
     R = Reg1(ones(dim), 'beta', 2^-12 * numel(ks(:,1,:,:)));
     C = block_fatrix({R.C}, 'type', 'col');
     
-    % If smap is empty, recon frame 1 coil images for smap construction
-    if isempty(args.smap)
-        
-        % Initialize image
-        im = zeros([dim, info.ncoils]);
-        
-        % Loop through coils
-        for coiln = 1:info.ncoils
-            
-            % Get data for first frame and current coil
-            data = reshape(raw(1,:,:,:,coiln),[],1);
-            
-            % Recon using cp without sensitivity encoding
-            im_cp = Gm' * W * data;
-
-            % Recon using pcg (iterative) without sensitivity encoding
-            if args.niter > 0
-                im_pcg = ir_wls_init_scale(Gm, data, im_cp);
-                im_pcg = qpwls_pcg1(im_pcg, Gm, 1, data, C, ...
-                    'niter', args.niter);
-                im(:,:,:,coiln) = reshape(im_pcg, dim);
-            
-            % ...or save image with CP recon
-            else
-                im(:,:,:,coiln) = reshape(im_cp, dim);
-            end
-        end
-        
-        % Save to file if image is not outputted
-        if nargout < 1
-            writenii([info.wd,'/coils_mag',args.outputtag], abs(im), ...
-                'fov', fov, 'doScl', args.scaleoutput);
-            writenii([info.wd,'/coils_ang',args.outputtag], angle(im), ...
-                'fov', fov, 'doScl', args.scaleoutput);
-            fprintf('\nCoil images (frame 1) saved to coil_*%s.nii',args.outputtag);
-        else
-            fprintf('\nImages will not be saved to file since coils image is returned');
-        end
-        
-    % ...or recon with sensitivity encoding
-    else
-        
+    if ~isempty(args.smap) || info.ncoils == 1
         % Correct size of W
         W = Gdiag(repmat(dcf(:),1,info.ncoils));
         
@@ -354,61 +313,84 @@ function im = recon3dflex(varargin)
             Ac{coiln} = Gm * tmp;
         end
         A = block_fatrix(Ac, 'type', 'col');
-       
-        % Save point spread function to file if specified
-        if nargin < 1
-            writenii([info.wd,'/psf',args.outputtag], abs(psf), ...
-                'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
-            fprintf('\nPoint spread function saved to psf%s.nii',args.outputtag);
+        
+        % Reshape data for recon (ndata x ncoils x nframes)
+        data_all = reshape(permute(raw(args.frames,:,:,:,:),[2:5,1]), ...
+            [],info.ncoils,length(args.frames));
+        
+        % Initialize output image (dim x nframes)
+        im = zeros([dim,length(args.frames)]);
+        
+        % Print message
+        fprintf('\nReconning image timeseries...');
+        
+    else
+        % System matrix is only fourier encoding
+        A = Gm;
+        
+        % Reshape data for recon (ndata x ncoils x nframes)
+        data_all = reshape(raw(1,:,:,:,:),[],1,info.ncoils);
+        
+        % Initialize output image (dim x ncoils)
+        im = zeros([dim,info.ncoils]);
+        
+        % Print message
+        fprintf('\nReconning coil-wise images for frame 1 only...');
+        
+    end
+    
+%% Reconstruct images
+    % Loop through image series (frames or coils index)
+    parfor n = 1:size(im,4)
+        
+        % Get indexed data
+        data = data_all(:,:,n);
+        
+        % Recon using conjugate-phase
+        im_cp = A' * reshape(W * data, [], 1);
+        
+        % Recon using preconditioned conjugate gradient (iterative)
+        if niter > 0
+            im_pcg = ir_wls_init_scale(A, data(:), im_cp);
+            im_pcg = qpwls_pcg1(im_pcg, A, 1, data(:), C,  'niter', niter);
+            im(:,:,:,n) = reshape(im_pcg, dim);
+            
+        % ...or save image with CP recon
+        else
+            im(:,:,:,n) = reshape(im_cp, dim);
         end
         
-        % Initialize image
-        im = zeros([dim, length(args.frames)]);
-        fprintf('\nReconning images...');
-        
-        % Loop through frames
-        savef = 1;
-        for framen = args.frames
-            
-            % Get data for current frame
-            data = reshape(raw(framen,:,:,:,:),[],info.ncoils);
-                      
-            % Recon using cp
-            im_cp = A' * reshape(W * data, [], 1);
-            
-            % Recon using pcg (iterative) without sensitivity encoding
-            if args.niter > 0
-                im_pcg = ir_wls_init_scale(A, data(:), im_cp);
-                im_pcg = qpwls_pcg1(im_pcg, A, 1, data(:), C, ...
-                    'niter', args.niter);
-                im(:,:,:,savef) = reshape(im_pcg, dim);
-            
-            % ...or save image with CP recon
-            else
-                im(:,:,:,savef) = reshape(im_cp, dim);
-            end
-            
-            % Update saved frame index
-            savef = savef + 1;
-        end
-        
-        % Save results that aren't returned to nifti:
-        if nargout < 1
+    end
+    
+%% Save and return output data
+
+    if nargout < 1
+        if ~isempty(args.smap)
             % Save timeseries
             writenii([info.wd,'/timeseries_mag',args.outputtag], abs(im), ...
                 'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
             writenii([info.wd,'/timeseries_ang',args.outputtag], angle(im), ...
                 'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
             fprintf('\nTimeseries saved to timeseries_mag%s.nii',args.outputtag);
-            
-            % Clear im so it won't be returned
-            clear im;
-            
-        % or remind user that output will not be returned...
         else
-            fprintf('\nImages will not be saved to file since timeseries is returned');
+            % Save coil images
+            writenii([info.wd,'/coils_mag',args.outputtag], abs(im), ...
+                'fov', fov, 'doScl', args.scaleoutput);
+            writenii([info.wd,'/coils_ang',args.outputtag], angle(im), ...
+                'fov', fov, 'doScl', args.scaleoutput);
+            fprintf('\nCoil images (frame 1) saved to coil_*%s.nii',args.outputtag);
         end
         
+        % Save point spread function
+        writenii([info.wd,'/psf',args.outputtag], abs(psf), ...
+            'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
+        fprintf('\nPoint spread function saved to psf%s.nii',args.outputtag);
+        
+        % Destroy im variable so it will not be returned
+        clear im
+    else
+        % Notify user that images will not be saved
+        fprintf('\nImages will not be saved to file since output is returned');
     end
     
     % Save and print elapsed time
