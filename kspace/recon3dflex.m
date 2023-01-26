@@ -322,9 +322,9 @@ function im = recon3dflex(varargin)
         
         % Save to file if image is not outputted
         if nargout < 1
-            writenii([info.wd,'/coils_mag_',args.outputtag], abs(im), ...
+            writenii([info.wd,'/coils_mag',args.outputtag], abs(im), ...
                 'fov', fov, 'doScl', args.scaleoutput);
-            writenii([info.wd,'/coils_ang_',args.outputtag], angle(im), ...
+            writenii([info.wd,'/coils_ang',args.outputtag], angle(im), ...
                 'fov', fov, 'doScl', args.scaleoutput);
             fprintf('\nCoil images (frame 1) saved to coil_*%s.nii',args.outputtag);
         else
@@ -362,6 +362,7 @@ function im = recon3dflex(varargin)
         C = block_fatrix({R.C}, 'type', 'col');
         
         % Loop through frames
+        savef = 1;
         for framen = args.frames
             
             % Get data for current frame
