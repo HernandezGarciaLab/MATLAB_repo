@@ -46,9 +46,12 @@ function blocproc(dataname, varargin)
 %       - duration of rest time
 %       - float/double describing time in seconds
 %       - default is 30
-%   - 'dosub':
-%       - option to perform asl sur subtraction on timeseries
-%       - boolean integer (0/1) decribing whether or not to use
+%   - 'togglemode':
+%       - option to treat data as though label has been toggled on/off
+%       - integer describing mode
+%           - (0) no toggling, label is constant
+%           - (1) process data as ASL subtraction
+%           - (2) process original timeseries but oscillate regressor
 %       - default is 0
 %   - 'realignmode':
 %       - option to realign images using spm_realign and spm_reslice
@@ -88,7 +91,7 @@ function blocproc(dataname, varargin)
         'delay',        0, ...
         'stimtime',     30, ...
         'resttime',     30, ...
-        'dosub',        0, ...
+        'togglemode',        0, ...
         'realignmode',  0, ...
         'ncompcor',     10, ...
         'zthresh',      [1,5], ...
@@ -161,55 +164,75 @@ function blocproc(dataname, varargin)
     rp = rp(args.discard+1:end,:);
     nframes = nframes-args.discard;
 
-    % create stimulation waveform
-    x = blockstim(nframes, args.delay, args.resttime, args.stimtime, TR, 0);
-
-    % create design matrix
-    A = [ones(size(x(:))), x(:), rp];
-
     % perform subtraction if specified
     order = 0;
-    while args.dosub
+    while args.togglemode == 1
         sub = aslsub(im,'fstart',1,'order',order);
         ms = mean(sub,4);
         if mean(ms(mask(:)>0)) > 0
             im = sub;
-            args.dosub = 0;
+            args.togglemode = 0;
         else
             order = 1;
         end
     end
-
+    
+    % determine toggling label regressor
+    if args.togglemode == 2
+        % determine toggle order
+        order = 1*(mean(im(:,:,:,1:2:end),'all') > mean(im(:,:,:,2:2:end),'all'));
+        
+        % create regressors
+        x_toggle = (-1).^((1:nframes) + order)';
+        x_bold = blockstim(nframes, args.delay, args.resttime, args.stimtime, TR, 0);
+        x_stim = x_toggle.*x_bold;
+        x_baseline = ones(size(x_stim(:)));
+        
+        % create design matrix & contrast matrix
+        A = [x_toggle, x_stim, x_baseline, x_bold];
+        C = eye(4);
+%         C = [C; -1 1 0 0];
+    else
+        % create stimulation response regressor 
+        x_stim = blockstim(nframes, args.delay, args.resttime, args.stimtime, TR, 0);
+        
+        % create baseline regressor (flat)
+        x_baseline = ones(size(x_stim(:)));
+        
+        % create design matrix & contrast matrix
+        A = [x_baseline, x_stim];
+        C = eye(2);
+       
+    end
+    
+    % append realignment parameters
+    A = [A,rp];
+    C = [C,zeros(size(C,1),size(rp,2))];
+    
     % use compcor to append noise regressors
     if args.ncompcor > 0
         [~,junk]= compcor(im, 'N', args.ncompcor, 'A', A);
         A = [A,junk];
         savename = [savename,sprintf('_cc%d',args.ncompcor)];
+        C = [C,zeros(size(C,1),size(junk,2))];
     end
 
     % smooth data
     for n=1:nframes
-        im(:,:,:,n) = smooth3(squeeze(im(:,:,:,n)),'gaussian', 5*[1 1 1]);
+        im(:,:,:,n) = smooth3(squeeze(im(:,:,:,n)),'gaussian', 3*[1 1 1]);
     end
-
-    % create contrast matrix
-    C = zeros(2,size(A,2));
-    for n=1:2, C(n,n) = 1; end
-
+    
     % use spmJr to perform regression
     zmap = spmJr(im,A,'C',C,'mask',mask,'fov',fov);
-
-    % use only second regressor (stim. activation)
-    zmap = squeeze(zmap(:,:,:,1:2));
-    
     
     % show
     cfigopen(savename)
-    overlayimages(base,[],zmap(:,:,:,1),args.zthresh,args.viewmode,args.viewargs{:})
+    overlayimages(base,[],zmap(:,:,:,2),args.zthresh,args.viewmode,args.viewargs{:})
     title([savename,' activation zscores'], 'Interpreter', 'none')
+    savename = [savename,'_',args.viewmode];
 
-    h.dim(5) = 2;
-    writenii('Zscores.nii',zmap, 'hdr', h);
+    % save zscores
+    writenii('zscores.nii', zmap, 'fov', fov);
 
     % cd back
     cd(curdir)

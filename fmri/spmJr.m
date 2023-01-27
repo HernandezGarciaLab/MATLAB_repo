@@ -107,15 +107,16 @@ function zscore = spmJr(im,A,varargin)
     % Get and check all dimensions
     dim = [size(im,1),size(im,2),size(im,3)];
     nframes = size(im,4);
+    npixels = prod(dim);
     if size(A,1) ~= nframes
         error('First dimension of design matrix must be equal to number of temporal frames');
     end
-    ncon = size(A,2);
+    nreg = size(A,2);
     if nargin < 3 || isempty(args.C)
-        args.C = eye(ncon);
-    elseif size(args.C,2) ~= ncon
-        warning('2nd dimension of contrast must be equal to second dimension of design matrix, proceeding with an identity matrix');
-        args.C = eye(ncon);
+        args.C = eye(nreg);
+    elseif size(args.C,2) ~= nreg
+        warning('2nd dimension of contrast must be equal to number of regressors (second dimension of design matrix), proceeding with an identity matrix');
+        args.C = eye(nreg);
     end
     
     % If mask is a nii file name, read in from file
@@ -136,27 +137,33 @@ function zscore = spmJr(im,A,varargin)
     args.mask = (args.mask - min(args.mask(:))) / ...
         (max(args.mask(:)) - min(args.mask(:)));
     args.mask = round(args.mask);
+    mask = reshape(args.mask,1,npixels);
     
-    % Estimate beta & residual map by using ordinary least squares
-    beta = pinv(A) * reshape(permute(im,[4 1:3]),[],prod(dim));
-    residual = im - permute(reshape(A*beta, [nframes,dim]),[2:4,1]);
-    beta = permute(reshape(beta,[ncon,dim]),[2:4,1]);
+    % Reshape timeseries to nframes x npixels
+    im_txp = reshape(permute(im,[4 1:3]),nframes,npixels);
+    
+    % Estimate betas & residual by using ordinary least squares
+    beta = pinv(A) * im_txp;
+    residual = im_txp - A * beta;
     
     % Calculate temporal variance of data
-    V = std(im,[],4).^2;
+    V = squeeze(std(im_txp,[],1).^2)';
     
-    % Calculate tscores for each contrast
+    % Initialize tscores for each contrast
     ncon = size(args.C,1); % Only estimate tscores for desired contrasts
     df = nframes - ncon + 1; % Degrees of freedom
-    tscore = zeros([dim,ncon]); % tscore map
-    variance = zeros([dim,ncon]); % constrast variance map
-    for conn = 1:ncon
+    tscore = zeros(ncon,npixels); % tscore map
+    variance = zeros(ncon,npixels); % constrast variance map
+    
+    % Loop through contrasts
+    for conn = 1:nreg
         rc = args.C(conn,:) * pinv(A); % Index current contrast in A
-        variance(:,:,:,conn) = reshape(rc .* V(:) * rc', dim);
-        tscore(:,:,:,conn) = ...
-            beta(:,:,:,conn) ./ sqrt(variance(:,:,:,conn) + eps()) .* args.mask;
-        if ~isempty(args.mask)
-            tscore(args.mask == 0) = 0;
+        variance(conn,:) = rc .* V(:) * rc';
+        beta_con = args.C(conn,:) * beta;
+        tscore(conn,:) = ...
+            beta_con ./ sqrt(variance(conn,:) + eps()) .* mask;
+        if ~isempty(mask)
+            tscore(mask == 0) = 0;
         else
             tscore(im(:,:,:,1) < args.tol) = 0;
         end
@@ -164,6 +171,13 @@ function zscore = spmJr(im,A,varargin)
     
     % Convert tscores to zscores using spm
     zscore = spm_t2z(tscore,df);
+    
+    % Reshape output data
+    beta = reshape(beta',[dim,nreg]);
+    tscore = reshape(tscore',[dim,ncon]);
+    zscore = reshape(zscore',[dim,ncon]);
+    variance = reshape(variance',[dim,ncon]);
+    residual = reshape(residual',[dim,nframes]);
     
     % Save data to files
     if nargout < 1

@@ -289,7 +289,7 @@ function im = recon3dflex(varargin)
     if ~isempty(args.t2)
         fprintf('\n');
         R2 = 1/(args.t2*1e3); % convert to 1/usec
-        Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2,1);
+        Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2*ones(dim),1);
     end
     
     % Correct smap for single-coil data
