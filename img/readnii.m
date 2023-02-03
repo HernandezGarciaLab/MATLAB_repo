@@ -31,7 +31,7 @@ function [im,h] = readnii(niifile_name,varargin)
 %       - boolean integer (0 or 1) describing whether or not to use
 %       - data will be read from two seperate files: '*_mag.nii' and
 %           '*_ang.nii' for magnitude and phase, respectively
-%       - default is 0
+%       - default is 1
 %
 % Function outputs:
 %   - im:

@@ -102,10 +102,7 @@ function im_sub = aslsub(im,varargin)
     
     % Define default for im
     if nargin < 1 || isempty(im)
-        im = 'timeseries_mag';
-    elseif iscomplex(im)
-        warning('Complex images are not supported, using absolute value');
-        im = abs(im);
+        im = 'timeseries';
     end
     
     % If im is a nii file name, read in from file
@@ -175,43 +172,52 @@ function im_sub = aslsub(im,varargin)
     elseif args.rel
         warning('Cannot compute relative signal change without M0 frames');
     end
-    
+
     % Save data to files
     if nargout < 1
         % Save subtraction timeseries/mean/std
-        mean_sub = mean(im_sub,4); std_sub = std(im_sub,[],4);        
+        mean_sub = mean(im_sub,4); std_sub = std(im_sub,[],4);
         writenii('./sub.nii',im_sub, ...
-            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput, ...
+            'savecomplex', 1);
         fprintf('\nSubtraction timeseries saved to sub.nii');
         writenii('./mean_sub.nii',mean_sub, ...
-            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput, ...
+            'savecomplex', 1);
         fprintf('\nTemporal mean subtraction saved to mean_sub.nii');
         writenii('./std_sub.nii',std_sub, ...
-            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput, ...
+            'savecomplex', 1);
         fprintf('\nTemporal standard deviation of subtraction saved to std_sub.nii');
         
         % Save tag timeseries/mean/std
         mean_tag = mean(im_tag,4); std_tag = std(im_tag,[],4);        
         writenii('./tag.nii',im_tag, ...
-            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput, ...
+            'savecomplex', 1);
         fprintf('\nTag timeseries saved to tag.nii');
         writenii('./mean_tag.nii',mean_tag, ...
-            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput, ...
+            'savecomplex', 1);
         fprintf('\nTemporal mean tag saved to mean_tag.nii');
         writenii('./std_tag.nii',std_tag, ...
-            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput, ...
+            'savecomplex', 1);
         fprintf('\nTemporal standard deviation of tag saved to std_tag.nii');
         
         % Save control timeseries/mean/std
         mean_con = mean(im_con,4); std_con = std(im_con,[],4);        
         writenii('./con.nii',im_con, ...
-            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput, ...
+            'savecomplex', 1);
         fprintf('\nControl timeseries saved to con.nii');
         writenii('./mean_con.nii',mean_con, ...
-            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput, ...
+            'savecomplex', 1);
         fprintf('\nTemporal mean control saved to mean_con.nii');
         writenii('./std_con.nii',std_con, ...
-            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput);
+            'fov', args.fov, 'tr', args.tr, 'doscl', args.scaleoutput, ...
+            'savecomplex', 1);
         fprintf('\nTemporal standard deviation of control saved to std_con.nii');
         
         % Clear im_sub so it won't be returned as ans

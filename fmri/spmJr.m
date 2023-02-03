@@ -156,17 +156,12 @@ function zscore = spmJr(im,A,varargin)
     variance = zeros(ncon,npixels); % constrast variance map
     
     % Loop through contrasts
-    for conn = 1:nreg
+    for conn = 1:ncon
         rc = args.C(conn,:) * pinv(A); % Index current contrast in A
         variance(conn,:) = rc .* V(:) * rc';
         beta_con = args.C(conn,:) * beta;
         tscore(conn,:) = ...
             beta_con ./ sqrt(variance(conn,:) + eps()) .* mask;
-        if ~isempty(mask)
-            tscore(mask == 0) = 0;
-        else
-            tscore(im(:,:,:,1) < args.tol) = 0;
-        end
     end
     
     % Convert tscores to zscores using spm
