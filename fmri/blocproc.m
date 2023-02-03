@@ -86,7 +86,7 @@ function blocproc(dataname, varargin)
 
     % Define default arguments
     defaults = struct( ...
-        'fname',        'timeseries_mag', ...
+        'fname',        'timeseries', ...
         'M0frames',     2, ...
         'discard',      0, ...
         'despike',      1, ...
@@ -120,11 +120,7 @@ function blocproc(dataname, varargin)
     end
 
     % read in timeseries
-    if ~isfile(args.fname)
-        error('%s does not exist',args.fname);
-    else
-        [im,h] = readnii(args.fname);
-    end
+    [im,h] = readnii(args.fname);
     
     % realignment
     rp = [];
@@ -155,7 +151,7 @@ function blocproc(dataname, varargin)
     end
 
     % determine base image
-    base = mean(im(:,:,:,1:args.M0frames),4);
+    base = abs(mean(im(:,:,:,1:args.M0frames),4));
 
     % get TR and nframes from header
     TR = h.pixdim(5)*1e-3;
@@ -226,13 +222,11 @@ function blocproc(dataname, varargin)
         x_stim = blockstim(nframes, args.stimdelay, args.resttime, args.stimtime, TR, 0);
         
         % create baseline regressor (flat)
-        x_baseline = ones(size(x_stim(:)));
-        x_global = squeeze(mean(im,1:3));
-        x_global = x_global(:) - mean(x_global(:));        
+        x_baseline = ones(size(x_stim(:))); 
 
 
         % create design matrix & contrast matrix
-        A = [x_baseline, x_stim, x_global];
+        A = [x_baseline, x_stim];
         C = eye(2);
        
     end

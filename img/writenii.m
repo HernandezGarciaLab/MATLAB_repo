@@ -203,6 +203,4 @@ function writenii(niifile_name,im,varargin)
     end
     
     fclose(niifile);
-    end
-
 end

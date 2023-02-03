@@ -30,8 +30,7 @@ if ~iscell(args.linked)
 end
 for s = 1:length(args.linked)
     data_s = data(args.linked{s},:);
-    [badx,bady] = find(isoutlier(data_s,args.outliermethod,1));
-%     [badx,bady] = find(abs(data_s) > mean(abs(data_s(:)) + args.thresh*std(abs(data_s(:)))));
+    [badx,bady] = find(isoutlier(abs(data_s),args.outliermethod,1));
     nbad = nbad + length(badx);
 
     % Loop through all unique points that contain at least 1 outlier
