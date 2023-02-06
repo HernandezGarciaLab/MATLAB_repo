@@ -87,14 +87,11 @@ function blocproc(dataname, varargin)
     % Define default arguments
     defaults = struct( ...
         'fname',        'timeseries_mag', ...
-        'M0frames',     2, ...
         'discard',      0, ...
-        'despike',      1, ...
-        'stimdelay',    0, ...
+        'delay',        0, ...
         'stimtime',     30, ...
         'resttime',     30, ...
-        'togglemode',   0, ...
-        'show',         1, ...
+        'togglemode',        0, ...
         'realignmode',  0, ...
         'ncompcor',     10, ...
         'zthresh',      [1,5], ...
@@ -148,32 +145,24 @@ function blocproc(dataname, varargin)
     end
 
     % read in or make mask
-    if isfile('mask.nii') && numel(readnii('mask')) == numel(im(:,:,:,1))
+    if isfile('mask.nii')
         mask = readnii('mask.nii');
     else
         mask = makemask(im,'thresh',0.1,'silent',1);
     end
 
     % determine base image
-    base = mean(im(:,:,:,1:args.M0frames),4);
+    base = im(:,:,:,1);
 
     % get TR and nframes from header
     TR = h.pixdim(5)*1e-3;
     fov = h.pixdim(2:4).*h.dim(2:4);
-    nframes = h.dim(5) - args.M0frames;
+    nframes = h.dim(5);
 
-    % discard M0 and extra frames from timeseries
-    im = im(:,:,:,args.M0frames+1:end);
-    rp = rp(args.M0frames+1:end,:);
-
-    if args.despike
-        fprintf('despiking...\n');
-        if args.togglemode
-            im = despike1d(im,4,'linked',{2:2:nframes,1:2:nframes},'outliermethod','mean');
-        else
-            im = despike1d(im,4,'thresh',2);
-        end
-    end
+    % discard frames
+    im = im(:,:,:,args.discard+1:end)*1e5;
+    rp = rp(args.discard+1:end,:);
+    nframes = nframes-args.discard;
 
     % perform subtraction if specified
     order = 0;
@@ -195,7 +184,7 @@ function blocproc(dataname, varargin)
         
         % create regressors
         x_toggle = (-1).^((1:nframes) + order)';
-        x_bold = blockstim(nframes, args.stimdelay, args.resttime, args.stimtime, TR, 0);
+        x_bold = blockstim(nframes, args.delay, args.resttime, args.stimtime, TR, 0);
         x_stim = x_toggle.*x_bold;
         x_baseline = ones(size(x_stim(:)));
 
@@ -208,31 +197,18 @@ function blocproc(dataname, varargin)
         % determine toggle order
         order = 1*(mean(im(:,:,:,1:2:end),'all') > mean(im(:,:,:,2:2:end),'all'));
         
-        % create regressors
-        x_toggle = (-1).^((1:nframes) + order)';
-        x_bold = blockstim(nframes, args.stimdelay, args.resttime, args.stimtime, TR, 0);
-        x_stim = x_toggle.*x_bold;
-        x_toggle = x_toggle - x_stim;
-        x_baseline = ones(size(x_stim(:)));
-        x_baseline = x_baseline-x_bold;
-
         % create design matrix & contrast matrix
         A = [x_toggle, x_stim, x_baseline, x_bold];%, x_global];
         regnames = {'toggle baseline','toggle stim aslrf','baseline','stim aslrf'};
         C = eye(4);
-        C(2,:) = [-1,1,0,0];
-        C(4,:) = [0,0,-1,1];
-
+%         C = [C; -1 1 0 0];
     else
         % create stimulation response regressor 
-        x_stim = blockstim(nframes, args.stimdelay, args.resttime, args.stimtime, TR, 0);
+        x_stim = blockstim(nframes, args.delay, args.resttime, args.stimtime, TR, 0);
         
         % create baseline regressor (flat)
         x_baseline = ones(size(x_stim(:)));
-        x_global = squeeze(mean(im,1:3));
-        x_global = x_global(:) - mean(x_global(:));        
-
-
+        
         % create design matrix & contrast matrix
         A = [x_baseline, x_stim];
         regnames = {'baseline','stim aslrf'};
@@ -286,11 +262,7 @@ function blocproc(dataname, varargin)
     A = A(args.discard+1:end,:);
     im = im(:,:,:,args.discard+1:end);
     zmap = spmJr(im,A,'C',C,'mask',mask,'fov',fov);
-   
-    % save contrast and design matrix
-    mat2txt('DesMat',A);
-    mat2txt('ConMat',C);
-
+    
     % show
     cfigopen([savename,' activation zscores'])
     subplot 221
@@ -346,7 +318,8 @@ function overlayimages(im1,cax1,im2,cax2,showtype,varargin)
 
     % normalize underlay to cax1
     if isempty(cax1)
-        cax1 = [min(im1(:)), max(im1(:))];
+        lbview(im1)
+        cax1 = caxis;
     end
     im1 = (im1 - cax1(1)) / diff(cax1);
     im1(im1 < 0) = 0;

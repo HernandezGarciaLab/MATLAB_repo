@@ -5,8 +5,7 @@ if nargin < 2 || isempty(dim)
 end
 
 defaults = struct( ...
-    'linked',           {1:size(data,dim)}, ...
-    'thresh',           3, ...
+    'linked',           1:size(data,dim), ...
     'outliermethod',    'median' ...
     );
 
@@ -24,15 +23,9 @@ data = reshape(data,size(data,1),[]);
 data_corr = data;
 
 % Loop through sets of indicies
-nbad = 0;
-if ~iscell(args.linked)
-    args.linked = {args.linked};
-end
 for s = 1:length(args.linked)
     data_s = data(args.linked{s},:);
     [badx,bady] = find(isoutlier(data_s,args.outliermethod,1));
-%     [badx,bady] = find(abs(data_s) > mean(abs(data_s(:)) + args.thresh*std(abs(data_s(:)))));
-    nbad = nbad + length(badx);
 
     % Loop through all unique points that contain at least 1 outlier
     for y = reshape(unique(bady),1,[])
@@ -55,8 +48,6 @@ end
 % Fix permutation and reshape
 data_corr = reshape(data_corr,datashape);
 data_corr = permute(data_corr,permutation);
-
-fprintf('despike1d removed %d points\n',nbad);
 
 end
 

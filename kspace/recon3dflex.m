@@ -367,15 +367,18 @@ function im = recon3dflex(varargin)
     if nargout < 1
         if ~isempty(args.smap)
             % Save timeseries
-            writenii([info.wd,'/timeseries',args.outputtag], im, ...
-                'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput, ...
-                'savecomplex', 1);
-            fprintf('\nTimeseries saved to timeseries%s.nii',args.outputtag);
+            writenii([info.wd,'/timeseries_mag',args.outputtag], abs(im), ...
+                'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
+            writenii([info.wd,'/timeseries_ang',args.outputtag], angle(im), ...
+                'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
+            fprintf('\nTimeseries saved to timeseries_mag%s.nii',args.outputtag);
         else
             % Save coil images
-            writenii([info.wd,'/coils',args.outputtag], im, ...
-                'fov', fov, 'doScl', args.scaleoutput, 'savecomplex', 1);
-            fprintf('\nCoil images (frame 1) saved to coils_*%s.nii',args.outputtag);
+            writenii([info.wd,'/coils_mag',args.outputtag], abs(im), ...
+                'fov', fov, 'doScl', args.scaleoutput);
+            writenii([info.wd,'/coils_ang',args.outputtag], angle(im), ...
+                'fov', fov, 'doScl', args.scaleoutput);
+            fprintf('\nCoil images (frame 1) saved to coil_*%s.nii',args.outputtag);
         end
         
         % Save point spread function

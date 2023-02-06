@@ -80,7 +80,10 @@ function mask = makemask(im,varargin)
     
     % Define default for im
     if nargin < 1 || isempty(im)
-        im = 'timeseries';
+        im = 'timeseries_mag';
+    elseif iscomplex(im)
+        warning('Complex images are not supported, using absolute value');
+        im = abs(im);
     end
     
     % If im is a nii file name, read in from file
@@ -90,9 +93,6 @@ function mask = makemask(im,varargin)
     elseif isempty(args.fov) && nargout < 1
         error('Must specify fov if image is not read from file');
     end
-
-    % Force use of magnitude image
-    im = abs(im);
 
     % Use only first frame if im is 4D
     if size(im,4) > 1
@@ -152,7 +152,7 @@ function mask = makemask(im,varargin)
     if nargout < 1
         
         % Save mask
-        writenii('./mask', 1.*mask, ...
+        writenii('./mask.nii', 1.*mask, ...
             'fov', args.fov, 'tr', 1, 'doscl', 0);
         if ~args.silent
             fprintf('\nMask saved to mask.nii');
