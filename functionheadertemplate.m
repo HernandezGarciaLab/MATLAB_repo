@@ -1,7 +1,7 @@
 % [function prototype]
 %
 % Part of umasl project by Luis Hernandez-Garcia and David Frey
-% @ University of Michigan 2022
+% @ University of Michigan 2023
 %
 % Description: [function desc]
 %

@@ -1,14 +1,61 @@
 function data_corr = despike1d(data,dim,varargin)
+% data_corr = despike1d(data,dim,varargin)
+%
+% Part of umasl project by Luis Hernandez-Garcia and David Frey
+% @ University of Michigan 2023
+%
+% Description: function to despike data along one specified dimension
+%   using isoutlier() routine for detection and linear regression for correction
+%
+% Dependencies:
+%   - matlab default path
+%       - can be restored by typing 'restoredefaultpath'
+%   - umasl
+%       - github: fmrifrey/umasl
+%       - umasl/matlab/ and subdirectories must be in current path
+%
+% Static input arguments:
+%   - data:
+%       - data to despike
+%       - array of data of any size
+%       - no default, required argument
+%   - dim:
+%       - dimension to despike along
+%       - integer < ndims(data) describing dimension to despike
+%       - default is 1 (despike along first dimension)
+%
+% Variable input arguments (type 'help varargin' for usage info):
+%   - 'linked':
+%       - groups of indicies to despike
+%       - array of indicies or cell array containing arrays of indicies to despike
+%       - examples:
+%		% despike the 5th-7th indicies of a dataset along dim 1:
+%		data_corr = despike1d(data,1,5:7);
+%		% despike odd and even indicies seperately along dim 4:
+%		data_corr = despike1d(data,4,{1:2:size(data,4),2:2:size(data,4)});
+%       - default is all indicies along dim (1:size(data,dim))
+%   - 'outliermethod':
+%       - 'method' option for isoutlier() function
+%       - string describing method to use for outlier detection
+%       - default is 'median'
+%
+% Function output:
+%   - data_corr:
+%       - corrected (despiked) data
+%
 
+% Define function static arg defaults
 if nargin < 2 || isempty(dim)
     dim = 1;
 end
 
+% Define varargin defaults
 defaults = struct( ...
     'linked',           1:size(data,dim), ...
     'outliermethod',    'median' ...
     );
 
+% Parse arguments using matlab's built-in variable input parser
 args = vararginparser(defaults,varargin{:});
 
 % Determine permutation by swapping first dimension with desired
