@@ -60,9 +60,8 @@ function [im,h] = readnii(niifile_name,varargin)
     if args.readcomplex && ...
             isfile([niifile_name,'_mag.nii']) &&  ...
             isfile([niifile_name,'_ang.nii'])
-        [im_mag,h] = readnii([niifile_name,'_mag']);
-        im_ang = readnii([niifile_name,'_ang']);
-        im = im_mag .* exp(1i*im_ang);
+        im = readnii([niifile_name,'_mag']) .* ...
+            exp(1i*readnii([niifile_name,'_mag']));
     else
         % Open nifti file for reading
         [niifile,msg_fopen] = fopen([niifile_name,'.nii'],'r','ieee-le');
