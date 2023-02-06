@@ -201,6 +201,7 @@ function blocproc(dataname, varargin)
 
         % create design matrix & contrast matrix
         A = [x_toggle, x_stim, x_baseline, x_bold];
+        regnames = {'toggle baseline','toggle stim aslrf','baseline','stim aslrf'};
         C = eye(4);
 
     elseif args.togglemode == 3
@@ -217,6 +218,7 @@ function blocproc(dataname, varargin)
 
         % create design matrix & contrast matrix
         A = [x_toggle, x_stim, x_baseline, x_bold];%, x_global];
+        regnames = {'toggle baseline','toggle stim aslrf','baseline','stim aslrf'};
         C = eye(4);
         C(2,:) = [-1,1,0,0];
         C(4,:) = [0,0,-1,1];
@@ -232,19 +234,26 @@ function blocproc(dataname, varargin)
 
 
         % create design matrix & contrast matrix
-        A = [x_baseline, x_stim, x_global];
+        A = [x_baseline, x_stim];
+        regnames = {'baseline','stim aslrf'};
         C = eye(2);
        
     end
     
     % append realignment parameters
     A = [A,rp];
+    for rpi = 1:size(rp,2)
+        regnames = [regnames,sprintf('rp%d',rpi)];
+    end
     C = [C,zeros(size(C,1),size(rp,2))];
     
     % use compcor to append noise regressors
     if args.ncompcor > 0
         [~,junk]= compcor(im, 'N', args.ncompcor, 'A', A);
         A = [A,junk];
+        for cci = 1:size(junk,2)
+            regnames = [regnames,sprintf('cc%d',cci)];
+        end
         savename = [savename,sprintf('_cc%d',args.ncompcor)];
         C = [C,zeros(size(C,1),size(junk,2))];
     end
@@ -276,9 +285,6 @@ function blocproc(dataname, varargin)
     % use spmJr to perform regression after discarding extra frames
     A = A(args.discard+1:end,:);
     im = im(:,:,:,args.discard+1:end);
-    cfigopen([savename,' design matrix'])
-    imagesc(A);
-    title([savename,' design matrix'],'Interpreter','none');
     zmap = spmJr(im,A,'C',C,'mask',mask,'fov',fov);
    
     % save contrast and design matrix
@@ -287,14 +293,34 @@ function blocproc(dataname, varargin)
 
     % show
     cfigopen([savename,' activation zscores'])
-    subplot 121
-    overlayimages(base,[],zmap(:,:,:,1),args.zthresh,args.viewmode,args.viewargs{:})
-    title('baseline')
-    subplot 122
+    subplot 221
+    z1 = zmap(:,:,:,1);
+    overlayimages(base,[],z1,[median(z1(:))+std(z1(:)),max(z1(:))],args.viewmode,args.viewargs{:})
+    title('contrast 1 (baseline)')
+    subplot 222
     overlayimages(base,[],zmap(:,:,:,2),args.zthresh,args.viewmode,args.viewargs{:})
-    title('activation')
+    title('contrast 2 (activation)')
     sgtitle([savename,' activation zscores'], 'Interpreter', 'none')
     savename = [savename,'_',args.viewmode];
+    subplot 223
+    imagesc(A);
+    xticks(1:size(A,2));
+    xticklabels(regnames);
+    xlabel('regressors');
+    yticklabels(TR*get(gca,'Ytick'));
+    ylabel('time (s)');
+    colorbar;
+    title('design matrix')
+    subplot 224
+    imagesc(C);
+    xticks(1:size(A,2));
+    xticklabels(regnames);
+    xlabel('regressors');
+    yticks(1:size(C,1));
+    ylabel('contrast #');
+    colorbar;
+    title('contrast matrix')
+
 
     % save zscores
     writenii('zscores.nii', zmap, 'fov', fov);

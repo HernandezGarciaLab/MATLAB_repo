@@ -49,13 +49,6 @@ function writenii(niifile_name,im,varargin)
 %       - precision of data type
 %       - C/Fortran string format (i.e. 'float32' or 'int16')
 %       - default is 'int16' (signed 16 bit integer)
-%   - 'savecomplex':
-%       - option to save complex data as 2 seperate files
-%       - boolean integer (0 or 1) describing whether or not to use
-%       - data will be saved as two seperate files: '*_mag.nii' and
-%           '*_ang.nii' for magnitude and phase, respectively
-%       - 'readcomplex' argument in readnii() will search for these files
-%       - default is 0
 %   - 'doscl':
 %       - option to scale output to full dynamic range in save file
 %       - boolean integer (0 or 1) describing whether or not to use
@@ -71,17 +64,25 @@ function writenii(niifile_name,im,varargin)
         'fov',          [], ... % fov (cm)
         'tr',           [], ... % TR (s)
         'precision',    'int16', ... % datatype precision
-        'savecomplex',  0, ... % option to save 2 files for complex data
         'doscl',        1 ... % option to scale
         );
     
     % Parse through variable inputs using matlab's built-in input parser
     args = vararginparser(defaults,varargin{:});
 
-    % Remove .nii extension if included
-    if contains(niifile_name,'.nii')
-        niifile_name = strsplit(niifile_name,'.nii');
-        niifile_name = niifile_name{1};
+    % Add .nii extension if user left it out
+    if ~contains(niifile_name,'.nii')
+        niifile_name = [niifile_name '.nii'];
+    end
+    
+    % Open nifti file for writing
+    [niifile,msg_fopen] = fopen(niifile_name,'wb','ieee-le');
+    if ~isempty(msg_fopen), error(msg_fopen); end
+    
+    % Check for complex image
+    if iscomplex(im)
+        warning('Complex images are not supported, using absolute value');
+        im = abs(im);
     end
     
     % Get dim
@@ -130,19 +131,6 @@ function writenii(niifile_name,im,varargin)
         h.scl_inter = 0;
         h.scl_slope = 1;
     end
-
-    % Recurse if saving complex data
-    if iscomplex(im) && args.savecomplex
-        writenii([niifile_name,'_mag'],abs(im),'h',h);
-        writenii([niifile_name,'_ang'],angle(im),'h',h);
-    elseif iscomplex(im)
-        warning('Use savecomplex = 1 to save data as mag and phase files');
-        im = abs(im);
-    end
-
-    % Open nifti file for writing
-    [niifile,msg_fopen] = fopen([niifile_name,'.nii'],'wb','ieee-le');
-    if ~isempty(msg_fopen), error(msg_fopen); end
     
     % Write header info
     fwrite(niifile, h.sizeof_hdr,       'int32');
@@ -203,6 +191,5 @@ function writenii(niifile_name,im,varargin)
     end
     
     fclose(niifile);
-    end
 
 end
