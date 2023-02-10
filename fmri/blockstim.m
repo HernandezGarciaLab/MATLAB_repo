@@ -105,7 +105,7 @@ function [x,x_hires] = blockstim(nframes,tstart,toff,ton,tr,show)
     x_hires = x_hires(1:length(t_hires))';
     
     % Get final regressor
-    x = interp1(t_hires(:), x_hires(:), t(:));
+    x = interp1(t_hires(:), x_hires(:), t(:),'spline','extrap');
     
     % Show regressor
     if show

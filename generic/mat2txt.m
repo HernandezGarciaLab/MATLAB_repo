@@ -16,8 +16,7 @@ function mat2txt(fname,A)
 % Static input arguments:
 %   - fname:
 %       - name of text file to write matrix to
-%       - string describing name of text file
-%       - if '.txt' extension is not included, function will append it
+%       - string describing name of text-based file (with extension)
 %       - no default, argument is required
 %   - A:
 %       - matrix to write to file
@@ -25,18 +24,19 @@ function mat2txt(fname,A)
 %       - no default, argument is required
 %
 
-    % Add .txt extension if user left it out
-    if ~contains(fname,'txt')
-        fname = [fname '.txt'];
-    end
-
     % Open file for writing
     fID = fopen(fname,'w');
 
     % Write matrix as float table
     for row = 1:size(A,1)
         for col = 1:size(A,2)
-            fprintf(fID,'%f \t',A(row,col));
+            if iscomplex(A) && sign(imag(A(row,col))) >= 0
+                fprintf(fID,'%f%+fi\t',real(A(row,col)),imag(A(row,col)));
+            elseif sign(imag(A(row,col))) < 0
+                fprintf(fID,'%f%-fi\t',real(A(row,col)),-imag(A(row,col)));
+            else
+                fprintf(fID,'%f \t',A(row,col));
+            end
         end
         fprintf(fID,'\n');
     end

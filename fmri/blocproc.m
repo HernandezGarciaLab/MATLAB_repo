@@ -88,6 +88,7 @@ function blocproc(dataname, varargin)
     defaults = struct( ...
         'fname',        'timeseries_mag', ...
         'discard',      0, ...
+        'M0frames',     2, ...
         'delay',        0, ...
         'stimtime',     30, ...
         'resttime',     30, ...
@@ -152,17 +153,16 @@ function blocproc(dataname, varargin)
     end
 
     % determine base image
-    base = im(:,:,:,1);
+    if args.M0frames
+        base = mean(im(:,:,:,1:args.M0frames),4);
+    else
+        base = im(:,:,:,1);
+    end
 
     % get TR and nframes from header
     TR = h.pixdim(5)*1e-3;
     fov = h.pixdim(2:4).*h.dim(2:4);
     nframes = h.dim(5);
-
-    % discard frames
-    im = im(:,:,:,args.discard+1:end)*1e5;
-    rp = rp(args.discard+1:end,:);
-    nframes = nframes-args.discard;
 
     % perform subtraction if specified
     order = 0;
@@ -197,11 +197,21 @@ function blocproc(dataname, varargin)
         % determine toggle order
         order = 1*(mean(im(:,:,:,1:2:end),'all') > mean(im(:,:,:,2:2:end),'all'));
         
+        % create regressors
+        x_toggle = (-1).^((1:nframes) + order)';
+        x_bold = blockstim(nframes, args.delay, args.resttime, args.stimtime, TR, 0);
+        x_stim = x_toggle.*x_bold;
+        x_baseline = ones(size(x_stim(:)));
+        x_toggle = x_toggle - x_stim;
+        x_baseline = x_baseline - x_bold;
+
         % create design matrix & contrast matrix
-        A = [x_toggle, x_stim, x_baseline, x_bold];%, x_global];
+        A = [x_toggle, x_stim, x_baseline, x_bold];
         regnames = {'toggle baseline','toggle stim aslrf','baseline','stim aslrf'};
         C = eye(4);
-%         C = [C; -1 1 0 0];
+
+        C(1,:) = [1 1 0 0];
+        C(2,:) = [-1 1 0 0];
     else
         % create stimulation response regressor 
         x_stim = blockstim(nframes, args.delay, args.resttime, args.stimtime, TR, 0);

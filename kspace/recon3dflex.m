@@ -60,6 +60,7 @@ function im = recon3dflex(varargin)
 %       - maximum number of iterations for model-based recon
 %       - integer describing number of iterations
 %       - if 0 is passed, conjugate phase recon will be used
+%       - if a value less than 0 is passed, NUFFT recon will be used
 %       - default is 0
 %   - 'frames'
 %       - frames in timeseries to recon
@@ -96,6 +97,12 @@ function im = recon3dflex(varargin)
 %           isovox = 0 to properly reconstruct, ideal for vsasl3dflex data
 %           acquired before august 2022
 %       - default is 1
+%   - 'girf'
+%       - name of girf file for gradient distortion correction
+%       - string describing name of text-based file (can be any extension)
+%       - if left empty, no gradient distortion correction will be
+%           performed
+%       - default is empty
 %   - 'ndel'
 %       - gradient sample delay compensation
 %       - integer describing number of samples to shift signal by in each
@@ -151,6 +158,7 @@ function im = recon3dflex(varargin)
         'zoomfactor',   1, ... % FOV zoom factor
         'smap',         [], ... % Sensitivity map for coil combination
         'isovox',       1, ... % flag for isotropic voxels between x&y / z
+        'girf',         [], ... % girf file to use
         'ndel',         0, ... % Gradient sample delay
         'nramp',        [], ... % Number of ramp points in spiral traj
         'pdorder',      -1, ... % Order of phase detrending poly fit
@@ -216,6 +224,20 @@ function im = recon3dflex(varargin)
             % Apply transformation to indexed kspace view
             ks(:,:,leafn,slicen) = (T*ks_0')';
         end
+    end
+
+    % Correct for gradient distortion if GIRF is passed
+    if ~isempty(args.girf)
+        fprintf('\nCorrecting gradient distortion based on GIRF file: %s...', ...
+            args.girf);
+        girf = readmatrix(args.girf,'FileType','text');
+        grad = padarray(diff(ks,1),[1,0,0,0],0,'pre');
+        grad_corr = zeros(size(grad));
+        for axis = 1:3
+            tmp = convn(grad(:,axis,:,:),girf(:,axis),'full');
+            grad_corr(:,axis,:,:) = tmp(1:info.ndat,1,:,:);
+        end
+        ks = cumsum(grad_corr,1);
     end
     
     % Clip echoes from end of echo train if specified
@@ -286,7 +308,7 @@ function im = recon3dflex(varargin)
     psf = Gm' * reshape(W * ones(numel(ks(:,1,:,:)),1), [], 1);
     
     % Build t2 relaxation map into Gmri object
-    if ~isempty(args.t2)
+    if ~isempty(args.t2) && args.niter >= 0
         fprintf('\n');
         R2 = 1/(args.t2*1e3); % convert to 1/usec
         Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2*ones(dim),1);
@@ -300,6 +322,11 @@ function im = recon3dflex(varargin)
     % Make quadratic regularizer for PCG recon
     R = Reg1(ones(dim), 'beta', 2^-12 * numel(ks(:,1,:,:)));
     C = block_fatrix({R.C}, 'type', 'col');
+
+    % Use only nufft for fourier encoding if niter < 0
+    if args.niter < 0
+        Gm = Gm.Gnufft;
+    end
     
     if ~isempty(args.smap) || info.ncoils == 1
         % Correct size of W
