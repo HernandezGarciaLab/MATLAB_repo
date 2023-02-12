@@ -78,30 +78,33 @@ nspikes = 0;
 
 % Loop through sets of indicies
 for s = 1:length(args.linked)
+    % Determine outliers for set of frames
     data_s = data(args.linked{s},:);
-    [badx,bady] = find(isoutlier(data_s,args.outliermethod,1));
-    nspikes = nspikes + length(badx);
-    nframes_s = length(args.linked{s});
+    [badf,badp] = find(isoutlier(abs(data_s),args.outliermethod,1));
+    nspikes = nspikes + length(badf);
+    
+    % Only index unique points that contain outliers
+    data_s = data(args.linked{s},unique(badp));
 
     % Loop through all unique points that contain at least 1 outlier
-    for y = reshape(unique(bady),1,[])
+    parfor bpi = 1:length(unique(badp))
 
         % Get data for current point
-        datay = data_s(:,y);
+        datap = data_s(:,bpi);
 
-        % Determine & seperate bad/good indicies for point
-        x1 = badx(bady == y);
-        x0 = 1:nframes_s;
-        x0(x1) = [];
+        % Determine & seperate bad/good frames for point
+        f1 = badf(badp == bpi);
+        f0 = 1:size(datap,1);
+        f0(f1) = [];
 
         % Replace with nearest neighbor
-        datay(x1) = interp1(x0,datay(x0),x1,'nearest','extrap');
-        data_s(:,y) = datay;
+        datap(f1) = interp1(f0,datap(f0),f1,'nearest','extrap');
+        data_s(:,bpi) = datap;
 
     end
 
     % Apply 
-    data_corr(args.linked{s},:) = data_s;
+    data_corr(args.linked{s},unique(badp)) = data_s;
 
 end
 
