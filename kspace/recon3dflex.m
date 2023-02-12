@@ -108,6 +108,11 @@ function im = recon3dflex(varargin)
 %       - integer describing number of samples to shift signal by in each
 %           echo
 %       - default is 0
+%   - 'despike'
+%       - linked frames for despiker in kspace along frames dimension
+%       - cell array containing linked frame arrays to depsike
+%       - see 'linked' argument of despike1d() for more info
+%       - default is empty
 %   - 'nramp'
 %       - number of ramp points in spiral to delete from data
 %       - integer describing number of points in ramp
@@ -158,8 +163,9 @@ function im = recon3dflex(varargin)
         'zoomfactor',   1, ... % FOV zoom factor
         'smap',         [], ... % Sensitivity map for coil combination
         'isovox',       1, ... % flag for isotropic voxels between x&y / z
-        'girf',         [], ... % girf file to use
+        'girf',         '20230206UHP3T_rbw125.girf', ... % girf file to use
         'ndel',         0, ... % Gradient sample delay
+        'despike',      {[]}, ... % linked frames to despike
         'nramp',        [], ... % Number of ramp points in spiral traj
         'pdorder',      -1, ... % Order of phase detrending poly fit
         't2',           [], ... % Option to perform t2 compensation
@@ -238,6 +244,7 @@ function im = recon3dflex(varargin)
             grad_corr(:,axis,:,:) = tmp(1:info.ndat,1,:,:);
         end
         ks = cumsum(grad_corr,1);
+        fprintf(' Done.')
     end
     
     % Clip echoes from end of echo train if specified
@@ -251,6 +258,14 @@ function im = recon3dflex(varargin)
     ti = ti + info.dt*info.ndat*permute(0:info.nslices-1,[1 3 2]);
         
 %% Apply corrections/filters
+    % Despike kspace
+    if ~isempty(args.despike)
+        fprintf('\nDespiking kspace samples along timecourse...')
+        [raw,nspikes] = despike1d(raw,1,'linked',args.despike);
+        fprintf(' Done. %d/%d (%.2f%%) of data replaced.', ...
+            numel(raw), nspikes, 100*nspikes/numel(raw));
+    end
+
     % Perform phase detrending
     if args.pdorder > -1
         raw = phasedetrend(raw,navpts,args.pdorder);
@@ -258,13 +273,15 @@ function im = recon3dflex(varargin)
     
     if strcmpi(args.t2, 'fit')
         % Make t2map in kspace
+        fprintf('\nFitting average T2 to raw data... ')
         args.t2 = fitt2(raw,navpts,info.te,info.dt);
         args.t2 = args.t2 * info.dt * 1e-3;
-        fprintf('\nFitted T2 value: %.1fms', args.t2);
+        fprintf(' Done. Fitted T2 value: %.1fms', args.t2);
     end
     
     % Correct for gradient sample delay
     if abs(args.ndel) > 0
+        fprintf('\nCorrecting for delay : %d samples', args.ndel)
         raw = circshift(raw,args.ndel,2);    
     end
     
@@ -274,6 +291,7 @@ function im = recon3dflex(varargin)
     raw(:,[1:args.nramp info.ndat-args.nramp:info.ndat],:,:,:) = [];
     ti([1:args.nramp info.ndat-args.nramp:info.ndat],:,:) = [];
     info.ndat = info.ndat - 2*args.nramp;
+    fprintf(' Done.');
     
 %% Set up reconstruction
     % Vectorize fov/dim and apply interpolation factors
@@ -300,18 +318,22 @@ function im = recon3dflex(varargin)
     niter = args.niter; % extract to avoid broadcasting args into parfor
     
     % Create density compensation using pipe algorithm
-    fprintf('\nCreating density compensation...');
+    fprintf('\nCalculating density compensation (Pipe-Menon method, 15 itr)...');
     dcf = pipedcf(Gm.Gnufft,15);
     W = Gdiag(dcf(:)./Gm.arg.basis.transform);
+    fprintf(' Done.')
     
     % Reconstruct point spread function
+    fprintf('\nCalculating PSF ...');
     psf = Gm' * reshape(W * ones(numel(ks(:,1,:,:)),1), [], 1);
-    
+    fprintf(' Done.');
+
     % Build t2 relaxation map into Gmri object
     if ~isempty(args.t2) && args.niter >= 0
-        fprintf('\n');
+        fprintf('\nCreating R2 Gmri zmap for reconstruction model...');
         R2 = 1/(args.t2*1e3); % convert to 1/usec
         Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2*ones(dim),1);
+        fprintf(' Done.');
     end
     
     % Correct smap for single-coil data
@@ -325,10 +347,17 @@ function im = recon3dflex(varargin)
 
     % Use only nufft for fourier encoding if niter < 0
     if args.niter < 0
+        fprintf('\nSetting up NUFFT reconstruction (since niter < 0) for')
         Gm = Gm.Gnufft;
+    elseif args.niter == 0
+        fprintf('\nSetting up CP reconstruction model for')
+    else
+        fprintf('\nSetting up %d-iteration PCG reconstruction model for',args.niter)
     end
     
     if ~isempty(args.smap) || info.ncoils == 1
+        fprintf(' image timeseries (with sensitivity encoding)...');
+
         % Correct size of W
         W = Gdiag(repmat(dcf(:),1,info.ncoils));
         
@@ -348,10 +377,9 @@ function im = recon3dflex(varargin)
         % Initialize output image (dim x nframes)
         im = zeros([dim,length(args.frames)]);
         
-        % Print message
-        fprintf('\nReconning image timeseries...');
-        
     else
+        fprintf(' coil-wise images for frame 1 (no sensitivity encoding)...');
+
         % System matrix is only fourier encoding
         A = Gm;
         
@@ -361,19 +389,21 @@ function im = recon3dflex(varargin)
         % Initialize output image (dim x ncoils)
         im = zeros([dim,info.ncoils]);
         
-        % Print message
-        fprintf('\nReconning coil-wise images for frame 1 only...');
         
     end
+    fprintf(' Done.')
     
 %% Reconstruct images
+    
+    fprintf('\nReconstructing...');
+
     % Loop through image series (frames or coils index)
     parfor n = 1:size(im,4)
         
         % Get indexed data
         data = data_all(:,:,n);
         
-        % Recon using conjugate-phase
+        % Recon preconditioner using conjugate-phase
         im_cp = A' * reshape(W * data, [], 1);
         
         % Recon using preconditioned conjugate gradient (iterative)
@@ -395,9 +425,9 @@ function im = recon3dflex(varargin)
         if ~isempty(args.smap)
             % Save timeseries
             writenii([info.wd,'/timeseries_mag',args.outputtag], abs(im), ...
-                'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
+                'fov', fov, 'tr', info.tr*info.nleaves, 'doscl', args.scaleoutput);
             writenii([info.wd,'/timeseries_ang',args.outputtag], angle(im), ...
-                'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
+                'fov', fov, 'tr', info.tr*info.nleaves, 'doscl', args.scaleoutput);
             fprintf('\nTimeseries saved to timeseries_mag%s.nii',args.outputtag);
         else
             % Save coil images

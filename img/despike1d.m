@@ -1,4 +1,4 @@
-function data_corr = despike1d(data,dim,varargin)
+function [data_corr,nspikes] = despike1d(data,dim,varargin)
 % data_corr = despike1d(data,dim,varargin)
 %
 % Part of umasl project by Luis Hernandez-Garcia and David Frey
@@ -49,6 +49,12 @@ if nargin < 2 || isempty(dim)
     dim = 1;
 end
 
+if iscomplex(data)
+    data_corr = despike1d(real(data),dim,varargin{:}) + ...
+        1i*despike1d(imag(data),dim,varargin{:});
+    return
+end
+
 % Define varargin defaults
 defaults = struct( ...
     'linked',           1:size(data,dim), ...
@@ -68,22 +74,29 @@ data = permute(data,permutation);
 datashape = size(data);
 data = reshape(data,size(data,1),[]);
 data_corr = data;
+nspikes = 0;
 
 % Loop through sets of indicies
 for s = 1:length(args.linked)
     data_s = data(args.linked{s},:);
     [badx,bady] = find(isoutlier(data_s,args.outliermethod,1));
+    nspikes = nspikes + length(badx);
+    nframes_s = length(args.linked{s});
 
     % Loop through all unique points that contain at least 1 outlier
     for y = reshape(unique(bady),1,[])
 
+        % Get data for current point
+        datay = data_s(:,y);
+
         % Determine & seperate bad/good indicies for point
         x1 = badx(bady == y);
-        x0 = 1:length(args.linked{s});
+        x0 = 1:nframes_s;
         x0(x1) = [];
 
-        % Interpolate using least squares regression
-        data_s(x1,y) = x1(:).^[1,0] * pinv(x0(:).^[1,0]) * data_s(x0,y);
+        % Replace with nearest neighbor
+        datay(x1) = interp1(x0,datay(x0),x1,'nearest','extrap');
+        data_s(:,y) = datay;
 
     end
 
