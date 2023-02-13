@@ -128,6 +128,7 @@ function im_ortho = orthoview(im,varargin)
         args.fov = size(im) / max(size(im),[],'all');
     end
     
+    
     % If dimensions are not the same size or there is a zoom/res factor,
     % interpolate & extrapolate the image
     if (size(im,1)~=size(im,2) || size(im,2)~=size(im,3)) ...
@@ -140,8 +141,9 @@ function im_ortho = orthoview(im,varargin)
             round(max(size(im))*args.resFactor)*ones(1,3));
         
         im = imgridder(X,Y,Z);
+        args.offset = round(args.offset*args.zoomFactor*args.resFactor);
     end
-    
+
     % Get cuts
     im_Sag = im(mod(round(size(im,1)/2)+args.offset(1),size(im,1)), :, :);
     im_Cor = im(:, mod(round(size(im,2)/2)+args.offset(2),size(im,2)), :);

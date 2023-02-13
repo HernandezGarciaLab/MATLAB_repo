@@ -34,10 +34,11 @@ function [data_corr,nspikes] = despike1d(data,dim,varargin)
 %		% despike odd and even indicies seperately along dim 4:
 %		data_corr = despike1d(data,4,{1:2:size(data,4),2:2:size(data,4)});
 %       - default is all indicies along dim (1:size(data,dim))
-%   - 'outliermethod':
-%       - 'method' option for isoutlier() function
-%       - string describing method to use for outlier detection
-%       - default is 'median'
+%   - 'madthresh':
+%       - threshold for outlier detection
+%       - flout/double describing fraction of mad away from median to
+%           set rejection threshold
+%       - default is 3
 %
 % Function output:
 %   - data_corr:
@@ -50,15 +51,17 @@ if nargin < 2 || isempty(dim)
 end
 
 if iscomplex(data)
-    data_corr = despike1d(real(data),dim,varargin{:}) + ...
-        1i*despike1d(imag(data),dim,varargin{:});
+    [data_corr_r,nspikes_r] = despike1d(real(data),dim,varargin{:});
+    [data_corr_i,nspikes_i] = despike1d(imag(data),dim,varargin{:});
+    data_corr = data_corr_r + 1i*data_corr_i;
+    nspikes = nspikes_r + nspikes_i;
     return
 end
 
 % Define varargin defaults
 defaults = struct( ...
-    'linked',           1:size(data,dim), ...
-    'outliermethod',    'median' ...
+    'linked',    1:size(data,dim), ...
+    'madthresh', 3 ...
     );
 
 % Parse arguments using matlab's built-in variable input parser
@@ -80,7 +83,7 @@ nspikes = 0;
 for s = 1:length(args.linked)
     % Determine outliers for set of frames
     data_s = data(args.linked{s},:);
-    [badf,badp] = find(isoutlier(abs(data_s),args.outliermethod,1));
+    [badf,badp] = find(abs(data_s - median(data_s,1)) > args.madthresh*mad(data_s,[],1));
     nspikes = nspikes + length(badf);
     
     % Only index unique points that contain outliers
@@ -90,16 +93,16 @@ for s = 1:length(args.linked)
     parfor bpi = 1:length(unique(badp))
 
         % Get data for current point
-        datap = data_s(:,bpi);
+        data_p = data_s(:,bpi);
 
         % Determine & seperate bad/good frames for point
-        f1 = badf(badp == bpi);
-        f0 = 1:size(datap,1);
-        f0(f1) = [];
-
+        fb = badf(badp == bpi);
+        fg = 1:size(data_p,1);
+        fg(fb) = [];
+                
         % Replace with nearest neighbor
-        datap(f1) = interp1(f0,datap(f0),f1,'nearest','extrap');
-        data_s(:,bpi) = datap;
+        data_p(fb) = interp1(fg,data_p(fg),fb,'nearest','extrap');
+        data_s(:,bpi) = data_p;
 
     end
 

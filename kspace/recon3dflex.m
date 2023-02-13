@@ -260,10 +260,11 @@ function im = recon3dflex(varargin)
 %% Apply corrections/filters
     % Despike kspace
     if ~isempty(args.despike)
+        ttmp = tic;
         fprintf('\nDespiking kspace samples along timecourse...')
         [raw,nspikes] = despike1d(raw,1,'linked',args.despike);
-        fprintf(' Done. %d/%d (%.2f%%) of data replaced.', ...
-            numel(raw), nspikes, 100*nspikes/numel(raw));
+        fprintf(' Done. %d/%d (%.2f%%) of data replaced. %.2fs elapsed.', ...
+            nspikes, 2*numel(raw), 100*nspikes/(2*numel(raw)), toc(ttmp));
     end
 
     % Perform phase detrending
@@ -418,6 +419,7 @@ function im = recon3dflex(varargin)
         end
         
     end
+    fprintf(' Done.');
     
 %% Save and return output data
 
