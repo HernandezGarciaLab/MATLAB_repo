@@ -260,11 +260,39 @@ function im = recon3dflex(varargin)
 %% Apply corrections/filters
     % Despike kspace
     if ~isempty(args.despike)
-        ttmp = tic;
+        %{
+	ttmp = tic;
         fprintf('\nDespiking kspace samples along timecourse...')
         [raw,nspikes] = despike1d(raw,1,'linked',args.despike);
         fprintf(' Done. %d/%d (%.2f%%) of data replaced. %.2fs elapsed.', ...
             nspikes, 2*numel(raw), 100*nspikes/(2*numel(raw)), toc(ttmp));
+	%}
+        fprintf('\nDespiking kspace...')
+        sr = size(raw);
+        Nspikes=0;
+        Ndata = prod(size(raw));
+        SDlevel = 2;  % Threshold for despoking : N of standard deviations
+
+        for n=1:sr(3) % shots
+            for m=1:sr(4) % N echoes per train (slices)
+                for p=1:sr(5) % coils
+                    % odd time frames    
+                    tmp = squeeze(raw(args.despike{1},:,n,m,p));
+                    [raw(args.despike{1},:,n,m,p) spikes] = ...
+                        smoothOutliers(tmp,SDlevel);
+                    Nspikes = Nspikes + spikes;
+                    % even time frames
+                    tmp = squeeze(raw(args.despike{2},:,n,m,p));
+                    [raw(args.despike{2},:,n,m,p) spikes] = ...
+                        smoothOutliers(tmp, SDlevel);
+                    Nspikes = Nspikes + spikes;
+
+                end
+            end
+        end
+        fprintf('\rFound %d spikes in %d data.  (%f percent)', ...
+            Nspikes, Ndata, Nspikes/Ndata*100);
+        fprintf('\n...Despiking Done')
     end
 
     % Perform phase detrending
@@ -399,6 +427,7 @@ function im = recon3dflex(varargin)
     fprintf('\nReconstructing...');
 
     % Loop through image series (frames or coils index)
+    fprintf('\nExecuting the Reconstruction. %d Iteration(s)...', niter);
     parfor n = 1:size(im,4)
         
         % Get indexed data
@@ -526,6 +555,54 @@ function raw_corr = phasedetrend(raw,navpts,pdorder)
     raw_corr = raw.*exp(-1i*fits);
 
 end
+%%
+function [out Nspikes]= smoothOutliers(raw, threshold)
+% function [out Nspikes_found] = smoothOutliers(raw, threshold);
+%
+% Given a 2D data set, smooth out the outliers along the row direction
+% This means replacing outliers with the average of their neighbors
+% along the row dimension
+%
+% outliers are defined as being threshold * stddev(row) away from the mean
+
+% detrend the data, but preserve its mean value
+mu = mean(raw, 1);
+raw = detrend(raw,2);
+raw = raw + mu; % preserve the mean value
+
+% allocate space for output:
+out = raw;
+mu = mean(raw(2:end-1, :), 1);
+sigma = std(raw(2:end-1, :), 1);
+Ndata = prod(size(raw));
+Nspikes = 0;
+% go through all the columns
+for col=1:size(out,2)
+    % identify spikes at each k-space location:
+    % first we detrend the data, then we identify the spikes
+    % datacolumn = detrend(raw(:,col));
+    datacolumn = (raw(:,col));
+    outlier_inds = find( abs(datacolumn-mu(col)) > sigma(col)*threshold );
+    Nspikes = Nspikes + length(outlier_inds);
+
+    % now replace the spikes by the mean of their neighbors
+    for r=1:length(outlier_inds)
+        % Now replace spikes by a mean of its neighbors (in time) -
+        % (linear interpolation)
+        % make sure we're not overwriting the field map (the first row)!
+        if (outlier_inds(r)>1 &&   outlier_inds(r) < length(datacolumn) -1)
+
+            row = outlier_inds(r);
+            out(row, col) = 0.5*(raw(row-1, col) + raw(row+1, col)) ;
+
+        end
+    end
+end
+
+% fprintf('\rFound %d spikes in %d data.  (%f percent)', ...
+%     Nspikes, Ndata, Nspikes/Ndata*100);
+end
+
 
 %% t2comp function definition
 function t2 = fitt2(raw,navpts,te,dt)
