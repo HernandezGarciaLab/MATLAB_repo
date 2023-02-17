@@ -60,6 +60,7 @@ function im = recon3dflex(varargin)
 %       - maximum number of iterations for model-based recon
 %       - integer describing number of iterations
 %       - if 0 is passed, conjugate phase recon will be used
+%       - if a value less than 0 is passed, NUFFT recon will be used
 %       - default is 0
 %   - 'frames'
 %       - frames in timeseries to recon
@@ -96,11 +97,22 @@ function im = recon3dflex(varargin)
 %           isovox = 0 to properly reconstruct, ideal for vsasl3dflex data
 %           acquired before august 2022
 %       - default is 1
+%   - 'girf'
+%       - name of girf file for gradient distortion correction
+%       - string describing name of text-based file (can be any extension)
+%       - if left empty, no gradient distortion correction will be
+%           performed
+%       - default is empty
 %   - 'ndel'
 %       - gradient sample delay compensation
 %       - integer describing number of samples to shift signal by in each
 %           echo
 %       - default is 0
+%   - 'despike'
+%       - linked frames for despiker in kspace along frames dimension
+%       - cell array containing linked frame arrays to depsike
+%       - see 'linked' argument of despike1d() for more info
+%       - default is empty
 %   - 'nramp'
 %       - number of ramp points in spiral to delete from data
 %       - integer describing number of points in ramp
@@ -151,7 +163,9 @@ function im = recon3dflex(varargin)
         'zoomfactor',   1, ... % FOV zoom factor
         'smap',         [], ... % Sensitivity map for coil combination
         'isovox',       1, ... % flag for isotropic voxels between x&y / z
+        'girf',         [], ... % girf file to use
         'ndel',         0, ... % Gradient sample delay
+        'despike',      {[]}, ... % linked frames to despike
         'nramp',        [], ... % Number of ramp points in spiral traj
         'pdorder',      -1, ... % Order of phase detrending poly fit
         't2',           [], ... % Option to perform t2 compensation
@@ -217,6 +231,21 @@ function im = recon3dflex(varargin)
             ks(:,:,leafn,slicen) = (T*ks_0')';
         end
     end
+
+    % Correct for gradient distortion if GIRF is passed
+    if ~isempty(args.girf)
+        fprintf('\nCorrecting gradient distortion based on GIRF file: %s...', ...
+            args.girf);
+        girf = readmatrix(args.girf,'FileType','text');
+        grad = padarray(diff(ks,1),[1,0,0,0],0,'pre');
+        grad_corr = zeros(size(grad));
+        for axis = 1:3
+            tmp = convn(grad(:,axis,:,:),girf(:,axis),'full');
+            grad_corr(:,axis,:,:) = tmp(1:info.ndat,1,:,:);
+        end
+        ks = cumsum(grad_corr,1);
+        fprintf('\n...GIRF correction Done')
+    end
     
     % Clip echoes from end of echo train if specified
     raw = raw(:,:,:,1+args.clipechoes(1):info.nslices-args.clipechoes(2),:);
@@ -229,6 +258,37 @@ function im = recon3dflex(varargin)
     ti = ti + info.dt*info.ndat*permute(0:info.nslices-1,[1 3 2]);
         
 %% Apply corrections/filters
+    % Despike kspace
+    if ~isempty(args.despike)
+        fprintf('\nDespiking kspace...')
+        %raw = despike1d(raw,1,'linked',args.despike);
+        sr = size(raw);
+        Nspikes=0;
+        Ndata = prod(size(raw));
+        SDlevel = 2;  % Threshold for despoking : N of standard deviations
+
+        for n=1:sr(3) % shots
+            for m=1:sr(4) % N echoes per train (slices)
+                for p=1:sr(5) % coils
+                    % odd time frames    
+                    tmp = squeeze(raw(args.despike{1},:,n,m,p));
+                    [raw(args.despike{1},:,n,m,p) spikes] = ...
+                        smoothOutliers(tmp,SDlevel);
+                    Nspikes = Nspikes + spikes;
+                    % even time frames
+                    tmp = squeeze(raw(args.despike{2},:,n,m,p));
+                    [raw(args.despike{2},:,n,m,p) spikes] = ...
+                        smoothOutliers(tmp, SDlevel);
+                    Nspikes = Nspikes + spikes;
+
+                end
+            end
+        end
+        fprintf('\rFound %d spikes in %d data.  (%f percent)', ...
+            Nspikes, Ndata, Nspikes/Ndata*100);
+        fprintf('\n...Despiking Done')
+    end
+
     % Perform phase detrending
     if args.pdorder > -1
         raw = phasedetrend(raw,navpts,args.pdorder);
@@ -236,6 +296,7 @@ function im = recon3dflex(varargin)
     
     if strcmpi(args.t2, 'fit')
         % Make t2map in kspace
+        fprintf('\nFitting T2 to the exho train ...')
         args.t2 = fitt2(raw,navpts,info.te,info.dt);
         args.t2 = args.t2 * info.dt * 1e-3;
         fprintf('\nFitted T2 value: %.1fms', args.t2);
@@ -243,6 +304,7 @@ function im = recon3dflex(varargin)
     
     % Correct for gradient sample delay
     if abs(args.ndel) > 0
+        fprintf('\nCorrecting for delay : %d samples', args.ndel)
         raw = circshift(raw,args.ndel,2);    
     end
     
@@ -278,16 +340,17 @@ function im = recon3dflex(varargin)
     niter = args.niter; % extract to avoid broadcasting args into parfor
     
     % Create density compensation using pipe algorithm
-    fprintf('\nCreating density compensation...');
+    fprintf('\nCalculating density compensation with Pipe method...');
     dcf = pipedcf(Gm.Gnufft,15);
     W = Gdiag(dcf(:)./Gm.arg.basis.transform);
     
     % Reconstruct point spread function
+    fprintf('\nCalculating PSF ...');
     psf = Gm' * reshape(W * ones(numel(ks(:,1,:,:)),1), [], 1);
     
     % Build t2 relaxation map into Gmri object
-    if ~isempty(args.t2)
-        fprintf('\n');
+    if ~isempty(args.t2) && args.niter >= 0
+        fprintf('\nIncluding T2 into the model (Gmri object)');
         R2 = 1/(args.t2*1e3); % convert to 1/usec
         Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2*ones(dim),1);
     end
@@ -300,8 +363,17 @@ function im = recon3dflex(varargin)
     % Make quadratic regularizer for PCG recon
     R = Reg1(ones(dim), 'beta', 2^-12 * numel(ks(:,1,:,:)));
     C = block_fatrix({R.C}, 'type', 'col');
+
+    % Use only nufft for fourier encoding if niter < 0
+    if args.niter < 0
+        fprintf('\nNUFFT recon (non-iterative)')
+        Gm = Gm.Gnufft;
+    end
     
     if ~isempty(args.smap) || info.ncoils == 1
+        % Print message
+        fprintf('\nMaking system matrix with sensitivity maps and allocating space...');
+        
         % Correct size of W
         W = Gdiag(repmat(dcf(:),1,info.ncoils));
         
@@ -321,10 +393,11 @@ function im = recon3dflex(varargin)
         % Initialize output image (dim x nframes)
         im = zeros([dim,length(args.frames)]);
         
-        % Print message
-        fprintf('\nReconning image timeseries...');
         
     else
+        % Print message
+        fprintf('\nMaking System Matrix and allocating space...');
+
         % System matrix is only fourier encoding
         A = Gm;
         
@@ -334,13 +407,12 @@ function im = recon3dflex(varargin)
         % Initialize output image (dim x ncoils)
         im = zeros([dim,info.ncoils]);
         
-        % Print message
-        fprintf('\nReconning coil-wise images for frame 1 only...');
         
     end
     
 %% Reconstruct images
     % Loop through image series (frames or coils index)
+    fprintf('\nExecuting the Reconstruction. %d Iteration(s)...', niter);
     parfor n = 1:size(im,4)
         
         % Get indexed data
@@ -368,9 +440,9 @@ function im = recon3dflex(varargin)
         if ~isempty(args.smap)
             % Save timeseries
             writenii([info.wd,'/timeseries_mag',args.outputtag], abs(im), ...
-                'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
+                'fov', fov, 'tr', info.tr*info.nleaves, 'doscl', args.scaleoutput);
             writenii([info.wd,'/timeseries_ang',args.outputtag], angle(im), ...
-                'fov', fov, 'tr', info.tr, 'doscl', args.scaleoutput);
+                'fov', fov, 'tr', info.tr*info.nleaves, 'doscl', args.scaleoutput);
             fprintf('\nTimeseries saved to timeseries_mag%s.nii',args.outputtag);
         else
             % Save coil images
@@ -467,6 +539,54 @@ function raw_corr = phasedetrend(raw,navpts,pdorder)
     raw_corr = raw.*exp(-1i*fits);
 
 end
+%%
+function [out Nspikes]= smoothOutliers(raw, threshold)
+% function [out Nspikes_found] = smoothOutliers(raw, threshold);
+%
+% Given a 2D data set, smooth out the outliers along the row direction
+% This means replacing outliers with the average of their neighbors
+% along the row dimension
+%
+% outliers are defined as being threshold * stddev(row) away from the mean
+
+% detrend the data, but preserve its mean value
+mu = mean(raw, 1);
+raw = detrend(raw,2);
+raw = raw + mu; % preserve the mean value
+
+% allocate space for output:
+out = raw;
+mu = mean(raw(2:end-1, :), 1);
+sigma = std(raw(2:end-1, :), 1);
+Ndata = prod(size(raw));
+Nspikes = 0;
+% go through all the columns
+for col=1:size(out,2)
+    % identify spikes at each k-space location:
+    % first we detrend the data, then we identify the spikes
+    % datacolumn = detrend(raw(:,col));
+    datacolumn = (raw(:,col));
+    outlier_inds = find( abs(datacolumn-mu(col)) > sigma(col)*threshold );
+    Nspikes = Nspikes + length(outlier_inds);
+
+    % now replace the spikes by the mean of their neighbors
+    for r=1:length(outlier_inds)
+        % Now replace spikes by a mean of its neighbors (in time) -
+        % (linear interpolation)
+        % make sure we're not overwriting the field map (the first row)!
+        if (outlier_inds(r)>1 &&   outlier_inds(r) < length(datacolumn) -1)
+
+            row = outlier_inds(r);
+            out(row, col) = 0.5*(raw(row-1, col) + raw(row+1, col)) ;
+
+        end
+    end
+end
+
+% fprintf('\rFound %d spikes in %d data.  (%f percent)', ...
+%     Nspikes, Ndata, Nspikes/Ndata*100);
+end
+
 
 %% t2comp function definition
 function t2 = fitt2(raw,navpts,te,dt)
