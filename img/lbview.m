@@ -129,14 +129,7 @@ function im_lb = lbview(im, varargin)
     
     % If  there is a zoom/res factor, interpolate & extrapolate the image
     if any([args.resFactor;args.zoomFactor] ~= 1)
-        [X0,Y0,Z0] = imgrid([size(im,1),size(im,2),size(im,3)], ...
-            [size(im,1),size(im,2),size(im,3)]);
-        imgridder = griddedInterpolant(X0,Y0,Z0,im,'linear','none');
-        
-        [X,Y,Z] = imgrid([size(im,1),size(im,2),size(im,3)]/args.zoomFactor, ...
-            [size(im,1),size(im,2),size(im,3)]*args.resFactor);
-        
-        im = imgridder(X,Y,Z);
+        im = regrid(im,'zoomfactor',args.zoomFactor,'resfactor',args.resFactor);
     end
     
     % Select slices

@@ -104,6 +104,8 @@ function im_ortho = orthoview(im,varargin)
     if ischar(im)
         [im,h] = readnii(im);
         args.fov = h.dim(2:4).*h.pixdim(2:4);
+    elseif isempty(args.fov)
+        args.fov = size(im);
     end
     
     % Warn user if image is complex
@@ -122,27 +124,10 @@ function im_ortho = orthoview(im,varargin)
         im = im(:,:,:,args.frame);
     end
     
-    % Check fov
-    if isempty(args.fov)
-        warning('FOV is not set, so assuming fov from dimensions (may produce weird images)');
-        args.fov = size(im) / max(size(im),[],'all');
-    end
-    
-    
-    % If dimensions are not the same size or there is a zoom/res factor,
-    % interpolate & extrapolate the image
-    if (size(im,1)~=size(im,2) || size(im,2)~=size(im,3)) ...
-            || any([args.resFactor;args.zoomFactor] ~= 1)
-        [X0,Y0,Z0] = imgrid(args.fov, ...
-            [size(im,1),size(im,2),size(im,3)]);
-        imgridder = griddedInterpolant(X0,Y0,Z0,im,'linear','none');
-        
-        [X,Y,Z] = imgrid(args.fov/args.zoomFactor, ...
-            round(max(size(im))*args.resFactor)*ones(1,3));
-        
-        im = imgridder(X,Y,Z);
-        args.offset = round(args.offset*args.zoomFactor*args.resFactor);
-    end
+    % Fix field of view and resolution
+    args.resFactor = args.resFactor(:)'.* max(size(im)) ./ size(im);
+    args.zoomFactor = args.zoomFactor(:)' .* size(im)/max(size(im));
+    im = regrid(im, 'resFactor', args.resFactor, 'zoomFactor', args.zoomFactor);
 
     % Get cuts
     im_Sag = im(mod(round(size(im,1)/2)+args.offset(1),size(im,1)), :, :);
