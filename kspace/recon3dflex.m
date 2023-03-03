@@ -26,24 +26,6 @@ function im_all = recon3dflex(varargin)
 %       - mirt setup must have successfully ran
 %
 % Variable input arguments (type 'help varargin' for usage info):
-%   - 'raw':
-%       - raw data structure
-%       - complex double/float array of dimensions (nframes x ndat x
-%           nleaves x nslices x ncoils)
-%       - if either raw or info is left empty, function will read data from
-%           the Pfile instead (see 'pfile' or type 'help readpfile' for
-%           more information)
-%       - default is empty (reads raw data from file)
-%   - 'info'
-%       - pfile information structure
-%       - structure containing fields: ndat, nleaves, nframes, nslices,
-%           ncoils, tr, te, dim, fov, slthick
-%       - type 'help readpfile' for more information on info structure
-%           format and field data types
-%       - if either raw or info is left empty, function will read data from
-%           the Pfile instead (see 'pfile' or type 'help readpfile' for
-%           more information)
-%       - default is empty (reads info from file)
 %   - 'pfile'
 %       - search string for pfile
 %       - string containing search path for desired pfile
@@ -105,11 +87,6 @@ function im_all = recon3dflex(varargin)
 %       - if 'auto' is passed, ramp points will be determined based on
 %           trajectory envelope
 %       - default is 'auto'
-%   - 't2'
-%       - T2 value for T2 decay compensation
-%       - float/double describing T2 in ms
-%       - if left empty, no t2 will not be considered in signal model
-%       - default is empty
 %   - 'scaleoutput'
 %       - option to scale nii files to full dynamic range
 %       - boolean integer (0 or 1) to use or not
@@ -135,8 +112,6 @@ function im_all = recon3dflex(varargin)
     
     % Define default arguments
     defaults = struct(...
-        'raw',          [], ... % Raw data
-        'info',         [], ... % Info structure
         'pfile',        'P*.7', ... % Search string for Pfile
         'niter_pcg',    0, ... % Max number of iterations for IR
         'niter_dcf',    15, ... % Max number of itr for dcf
@@ -148,7 +123,6 @@ function im_all = recon3dflex(varargin)
         'girf',         '20230206UHP3T_rbw125.girf', ... % girf file to use
         'despike',      {[]}, ... % linked frames to despike
         'nramp',        50, ... % Number of ramp points in spiral traj
-        't2',           [], ... % Option to perform t2 compensation
         'scaleoutput',  1, ... % Option to scale output to full dynamic range
         'outputtag',    [] ... % Output filename tag
         );
@@ -160,13 +134,29 @@ function im_all = recon3dflex(varargin)
     % Parse through variable inputs using matlab's built-in input parser
     args = vararginparser(defaults,varargin{:});
     
-    % Get raw data and info
-    if (isempty(args.raw) || isempty(args.info)) % If reading from Pfile
-        [raw,info] = formatpfile(args.pfile);
-    else % If raw/scaninfo is user specified
-        raw = args.raw;
-        info = args.info;
-    end
+    % Determine pfile
+    d = dir(args.pfile);
+    wd = d(1).folder;
+    args.pfile = [wd,'/',d(1).name];
+    
+    % Read in raw data and header from pfile
+    fprintf('\nReading raw data from: %s...',args.pfile);
+    [raw,phdr] = readpfile(args.pfile);
+    fprintf(' Done.');
+    
+    % Get info from the header:
+    ndat = phdr.rdb.frame_size;
+    nslices = phdr.rdb.nslices;
+    ncoils = phdr.rdb.dab(2) - phdr.rdb.dab(1) + 1;
+    nleaves = phdr.image.user0;
+    nframes = phdr.rdb.nframes / nleaves;
+    tr = phdr.image.tr*1e-3;
+    dim = phdr.image.dim_X;
+    fov = phdr.image.dfov/10;
+    
+    % Reshape and permute raw
+    raw = reshape(raw,ndat,nleaves,nframes,nslices,ncoils);
+    raw = permute(raw,[3,1,2,4,5]);
     
     % Append output tag
     if ~isempty(args.outputtag)
@@ -175,24 +165,23 @@ function im_all = recon3dflex(varargin)
     
     % Determine frames to recon 
     if strcmpi(args.frames,'all')
-        args.frames = 1:info.nframes;
-    elseif max(args.frames) > info.nframes
-        fprintf('\nWarning: Frames array exceeds total number of frames');
-        fprintf('\n\t--> reconning all frames');
-        args.frames = 1:info.nframes;
+        args.frames = 1:nframes;
+    elseif max(args.frames) > nframes
+        warning('frames array exceeds total number of frames');
+        args.frames = 1:nframes;
     end
     
 %% Process Trajectory
     % Get un-transformed kspace trajectory and view transformations
-    ks_0 = load([info.wd '/ktraj_cart.txt']);
-    kviews = load([info.wd '/kviews.txt']);
+    ks_0 = load([wd '/ktraj_cart.txt']);
+    kviews = load([wd '/kviews.txt']);
     
     % Transform trajectory to entire trajectory
-    ks = zeros(info.ndat, 3, info.nleaves, info.nslices);
-    for leafn = 1:info.nleaves
-        for slicen = 1:info.nslices
+    ks = zeros(ndat, 3, nleaves, nslices);
+    for leafn = 1:nleaves
+        for slicen = 1:nslices
             % Determine indexed transformation matrix
-            viewn = (leafn - 1) * info.nslices + slicen;
+            viewn = (leafn - 1) * nslices + slicen;
             T = reshape(kviews(viewn, end-8:end), 3, 3)';
             
             % Apply transformation to indexed kspace view
@@ -209,21 +198,16 @@ function im_all = recon3dflex(varargin)
         grad_corr = zeros(size(grad));
         for axis = 1:3
             tmp = convn(grad(:,axis,:,:),girf(:,axis),'full');
-            grad_corr(:,axis,:,:) = tmp(1:info.ndat,1,:,:);
+            grad_corr(:,axis,:,:) = tmp(1:ndat,1,:,:);
         end
         ks = cumsum(grad_corr,1);
         fprintf(' Done.')
     end
     
     % Clip echoes from end of echo train if specified
-    raw = raw(:,:,:,1+args.clipechoes(1):info.nslices-args.clipechoes(2),:);
-    ks = ks(:,:,:,1+args.clipechoes(1):info.nslices-args.clipechoes(2),:);
-    info.nslices = info.nslices - sum(args.clipechoes);
-    
-    % Make timing array
-    ti = info.dt*(0:info.ndat-1)' + round((info.te - info.dt*info.ndat)/2);
-    ti = repmat(ti,1,info.nleaves,info.nslices);
-    ti = ti + info.dt*info.ndat*permute(0:info.nslices-1,[1 3 2]);
+    raw = raw(:,:,:,1+args.clipechoes(1):nslices-args.clipechoes(2),:);
+    ks = ks(:,:,:,1+args.clipechoes(1):nslices-args.clipechoes(2),:);
+    nslices = nslices - sum(args.clipechoes);
         
 %% Apply corrections/filters
     % Despike kspace
@@ -265,16 +249,15 @@ function im_all = recon3dflex(varargin)
     
     % Remove ramp points
     fprintf('\nRemoving %d ramp points from data...', args.nramp);
-    ks([1:args.nramp info.ndat-args.nramp:info.ndat],:,:,:) = [];
-    raw(:,[1:args.nramp info.ndat-args.nramp:info.ndat],:,:,:) = [];
-    ti([1:args.nramp info.ndat-args.nramp:info.ndat],:,:) = [];
-    info.ndat = info.ndat - 2*args.nramp;
+    ks([1:args.nramp ndat-args.nramp:ndat],:,:,:) = [];
+    raw(:,[1:args.nramp ndat-args.nramp:ndat],:,:,:) = [];
+    ndat = ndat - 2*args.nramp;
     fprintf(' Done.');
     
 %% Set up reconstruction
     % Vectorize fov/dim and apply interpolation factors
-    fov = info.fov*ones(1,3) / args.zoomfactor;
-    dim = round(info.dim*ones(1,3) * args.resfactor);
+    fov = fov*ones(1,3) / args.zoomfactor;
+    dim = round(dim*ones(1,3) * args.resfactor);
     immask = true(dim);
     
     % Create Gmri object
@@ -297,7 +280,7 @@ function im_all = recon3dflex(varargin)
     fprintf('\nCalculating density compensation (Pipe-Menon method, %d itr)...', ...
         args.niter_dcf);
     dcf = pipedcf(Gm.Gnufft,args.niter_dcf);
-    W = Gdiag(dcf(:)./Gm.arg.basis.transform);
+    W = Gdiag(dcf(:)./Gm.arg.basis.transform, 'mask', kmask);
     fprintf(' Done.')
     
     % Reconstruct point spread function
@@ -305,17 +288,9 @@ function im_all = recon3dflex(varargin)
     psf = Gm' * (W * ones(sum(kmask),1));
     psf = embed(psf,immask);
     fprintf(' Done.');
-
-    % Build t2 relaxation map into Gmri object
-    if ~isempty(args.t2) && args.niter >= 0
-        fprintf('\nCreating R2 Gmri zmap for reconstruction model...');
-        R2 = 1/(args.t2*1e3); % convert to 1/usec
-        Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2*ones(dim),1);
-        fprintf(' Done.');
-    end
     
     % Correct smap for single-coil data
-    if isempty(args.smap) && info.ncoils == 1
+    if isempty(args.smap) && ncoils == 1
         args.smap = ones(dim);
     end
     
@@ -333,7 +308,7 @@ function im_all = recon3dflex(varargin)
         fprintf('\nSetting up %d-iteration PCG reconstruction model for',args.niter_pcg)
     end
     
-    if ~isempty(args.smap) || info.ncoils == 1
+    if ~isempty(args.smap) || ncoils == 1
         
         fprintf(' image timeseries (with sensitivity encoding)...');
         
@@ -352,9 +327,9 @@ function im_all = recon3dflex(varargin)
             
             if nargout < 1
                 % Save sense map to nii file
-                writenii([info.wd,'/smap_mag',args.outputtag], ...
+                writenii([wd,'/smap_mag',args.outputtag], ...
                     abs(args.smap), 'fov', fov, 'tr', 1, 'doscl', 1);
-                writenii([info.wd,'/smap_ang',args.outputtag], ...
+                writenii([wd,'/smap_ang',args.outputtag], ...
                     angle(args.smap), 'fov', fov, 'tr', 1, 'doscl', ...
                     args.scaleoutput);
                 fprintf('SENSE map saved to smap_*%s.nii',args.outputtag);
@@ -367,11 +342,11 @@ function im_all = recon3dflex(varargin)
         end
         
         % Correct size of W
-        W = Gdiag(repmat(dcf(:)./Gm.arg.basis.transform,1,info.ncoils));
+        W = Gdiag(repmat(dcf(:)./Gm.arg.basis.transform,1,ncoils), 'mask', kmask);
         
         % Incorporate sensitivity encoding into system matrix
-        Ac = repmat({[]},info.ncoils,1);
-        for coiln = 1:info.ncoils
+        Ac = repmat({[]},ncoils,1);
+        for coiln = 1:ncoils
             tmp = args.smap(:,:,:,coiln);
             tmp = Gdiag(tmp(immask),'mask',immask);
             Ac{coiln} = Gm * tmp;
@@ -380,7 +355,7 @@ function im_all = recon3dflex(varargin)
         
         % Reshape data for recon (ndata x ncoils x nframes)
         data_all = reshape(permute(raw(args.frames,:,:,:,:),[2:5,1]), ...
-            [],info.ncoils,length(args.frames));
+            [],ncoils,length(args.frames));
         
         % Initialize output image (dim x nframes)
         im_all = zeros([dim,length(args.frames)]);
@@ -392,10 +367,10 @@ function im_all = recon3dflex(varargin)
         A = Gm;
         
         % Reshape data for recon (ndata x 1 x ncoils)
-        data_all = reshape(raw(1,:,:,:,:),[],1,info.ncoils);
+        data_all = reshape(raw(1,:,:,:,:),[],1,ncoils);
         
         % Initialize output image (dim x ncoils)
-        im_all = zeros([dim,info.ncoils]);
+        im_all = zeros([dim,ncoils]);
         
     end
     data_all = data_all(kmask,:,:);
@@ -434,22 +409,22 @@ function im_all = recon3dflex(varargin)
     if nargout < 1
         if ~isempty(args.smap)
             % Save timeseries
-            writenii([info.wd,'/timeseries_mag',args.outputtag], abs(im_all), ...
-                'fov', fov, 'tr', info.tr*info.nleaves, 'doscl', args.scaleoutput);
-            writenii([info.wd,'/timeseries_ang',args.outputtag], angle(im_all), ...
-                'fov', fov, 'tr', info.tr*info.nleaves, 'doscl', args.scaleoutput);
+            writenii([wd,'/timeseries_mag',args.outputtag], abs(im_all), ...
+                'fov', fov, 'tr', tr*nleaves, 'doscl', args.scaleoutput);
+            writenii([wd,'/timeseries_ang',args.outputtag], angle(im_all), ...
+                'fov', fov, 'tr', tr*nleaves, 'doscl', args.scaleoutput);
             fprintf('\nTimeseries saved to timeseries_*%s.nii',args.outputtag);
         else
             % Save coil images
-            writenii([info.wd,'/coils_mag',args.outputtag], abs(im_all), ...
+            writenii([wd,'/coils_mag',args.outputtag], abs(im_all), ...
                 'fov', fov, 'doScl', args.scaleoutput);
-            writenii([info.wd,'/coils_ang',args.outputtag], angle(im_all), ...
+            writenii([wd,'/coils_ang',args.outputtag], angle(im_all), ...
                 'fov', fov, 'doScl', args.scaleoutput);
             fprintf('\nCoil images (frame 1) saved to coil_*%s.nii',args.outputtag);
         end
         
         % Save point spread function
-        writenii([info.wd,'/psf',args.outputtag], abs(psf), ...
+        writenii([wd,'/psf',args.outputtag], abs(psf), ...
             'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
         fprintf('\nPoint spread function saved to psf%s.nii',args.outputtag);
         
@@ -464,38 +439,6 @@ function im_all = recon3dflex(varargin)
     t = toc(t);
     fprintf('\nRecon complete. Total elapsed time: %.2fs\n',t);
     
-end
-
-%% readpfile function definition
-function [raw,info] = formatpfile(searchstr)
-
-    [raw,h] = readpfile(searchstr);
-    d = dir(searchstr);
-    
-    % Create info struct based on header info
-    info = struct(...
-        'ndat',     h.rdb.da_xres, ... % Number of points / echo
-        'nleaves',  h.image.user0, ... % Number of interleaves
-        'nframes',  h.image.user1, ... % Number of temporal frames
-        'nslices',  h.image.slquant, ... % Number of slices
-        'ncoils',   h.rdb.dab(2) - h.rdb.dab(1) + 1, ... % Number of coils
-        'tr',       h.image.tr*1e-3, ... % TR (ms)
-        'te',       h.image.te, ... % TE (usec)
-        'dt',       4, ... % Sampling period (usec)
-        'dim',      h.image.dim_X, ... % Image x/y dimension
-        'fov',      h.image.dfov/10, ... % FOV (cm)
-        'slthick',  h.image.slthick/10, ... % Slice Thickness (cm)
-        'wd',       d(1).folder ... % Working directory
-        );
-    
-    % Reshape data
-    raw = reshape(raw, ...
-        info.ndat,info.nframes*info.nleaves+1,info.nslices,info.ncoils);
-    raw(:,1,:,:) = []; % cut out baseline
-    raw = reshape(raw, ...
-        info.ndat,info.nleaves,info.nframes,info.nslices,info.ncoils);
-    raw = permute(raw, [3,1,2,4,5]);
-
 end
 
 %%
