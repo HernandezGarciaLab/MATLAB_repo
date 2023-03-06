@@ -43,6 +43,17 @@ function im_all = recon3dflex(varargin)
 %       - maximum number of iterations for dcf calculation
 %       - integer describing number of iterations
 %       - default is 15
+%   - 'niter_SNAILS'
+%       - maximum number of iterations for SNAILS algorithm
+%       - integer describing number of iterations
+%       - if 0 is passed, no SNAILS correction will be performed
+%       - default is 0
+%   - 'L_SNAILS'
+%       - window size for SNAILS corrections
+%       - float/double describing fraction of kmax to use for low-pass
+%           filtering in SNAILS algorithm
+%       - if 0 is passed, no SNAILS correction will be performed
+%       - default is 0.05
 %   - 'frames'
 %       - frames in timeseries to recon
 %       - integer array containing specific frames to recon
@@ -115,6 +126,8 @@ function im_all = recon3dflex(varargin)
         'pfile',        'P*.7', ... % Search string for Pfile
         'niter_pcg',    0, ... % Max number of iterations for IR
         'niter_dcf',    15, ... % Max number of itr for dcf
+        'niter_SNAILS', 0, ... % Max number of itr for SNAILS algorithm
+        'L_SNAILS',     0.05, ... % Low-pass window size for SNAILS algorithm
         'frames',       'all', ... % Frames to recon
         'clipechoes',   [0 0], ... % Number of echoes to remove
         'resfactor',    1, ... % Resolution upsampling factor
@@ -153,6 +166,10 @@ function im_all = recon3dflex(varargin)
     tr = phdr.image.tr*1e-3;
     dim = phdr.image.dim_X;
     fov = phdr.image.dfov/10;
+    
+    % Vectorize fov/dim and apply interpolation factors
+    fov = fov*ones(1,3) / args.zoomfactor;
+    dim = round(dim*ones(1,3) * args.resfactor);
     
     % Reshape and permute raw
     raw = reshape(raw,ndat,nleaves,nframes,nslices,ncoils);
@@ -248,23 +265,109 @@ function im_all = recon3dflex(varargin)
     end
     
     % Remove ramp points
-    fprintf('\nRemoving %d ramp points from data...', args.nramp);
+    fprintf('\nRemoving %d ramp points from FIDs...', args.nramp);
     ks([1:args.nramp ndat-args.nramp:ndat],:,:,:) = [];
     raw(:,[1:args.nramp ndat-args.nramp:ndat],:,:,:) = [];
     ndat = ndat - 2*args.nramp;
     fprintf(' Done.');
     
-%% Set up reconstruction
-    % Vectorize fov/dim and apply interpolation factors
-    fov = fov*ones(1,3) / args.zoomfactor;
-    dim = round(dim*ones(1,3) * args.resfactor);
-    immask = true(dim);
+    % Perform SNAILS correction
+    if args.niter_SNAILS > 0 && args.L_SNAILS
+        fprintf('\nPerforming %d itr SNAILS correction with L = %0.3f*kmax...',  ...
+            args.niter_SNAILS, args.L_SNAILS);
+        
+        % Determine upsampled fov and dim for accurate correction
+        usfac = 8; % Upsampling factor for NUFFT
+        fov_2D = 1/2 * usfac * fov(1:2);
+        dim_2D = usfac * dim(1:2);
+        kmax_2D = dim_2D ./ fov_2D;
+        L_SNAILS = args.L_SNAILS * vecnorm(kmax_2D,2,2);
+        
+        % Get coordinates for 2D spiral and cartesian kspace
+        kx_2D_spiral = ks(:,1,1,1);
+        ky_2D_spiral = ks(:,2,1,1);
+        [kx_2D_cart, ky_2D_cart] = imgrid(kmax_2D, dim_2D);
+        
+        % Mask out kspace data above kmax to prevent fov issues in NUFFT
+        kmask_2D = abs(2*pi*vecnorm([kx_2D_spiral,ky_2D_spiral].* ...
+            fov_2D./dim_2D,2,2)) <= pi;
+        
+        % Make 2D Gmri object
+        nufft_args_SNAILS = { ...
+            dim_2D, ...
+            6 * ones(1,2), ...
+            2 * dim_2D, ...
+            1/2 * dim_2D, ...
+            'table', ...
+            2^10, ...
+            'minmax:kb'};
+        G_SNAILS = Gmri([kx_2D_spiral(kmask_2D),ky_2D_spiral(kmask_2D)], ...
+            true(dim_2D), 'fov', fov_2D,  'basis', {'rect'}, 'nufft', ...
+            nufft_args_SNAILS(:)');
+        
+        % Make density compensation
+        dcf_2D_spiral = pipedcf(G_SNAILS,args.niter_dcf);
+        W_2D_spiral = Gdiag(dcf_2D_spiral(:) ./ G_SNAILS.arg.basis.transform, ...
+            'mask', kmask_2D);
+        
+        % Make windowing function for spiral and cartesian coordinates
+        H_lp = @(k) exp(-(pi/2 * vecnorm(k,2,2) / L_SNAILS ).^2);
+        H_lp_spiral = H_lp([kx_2D_spiral,ky_2D_spiral]);
+        H_lp_cart = reshape(H_lp([kx_2D_cart(:),ky_2D_cart(:)]), dim_2D);
+        
+        % Loop through all echoes
+        for framen = 1:args.frames
+            for echon = 1:nleaves*nslices*ncoils
+                
+                % Get kspace data and apply low pass fitler in parallel
+                kdat = raw(framen,:,echon);
+                kdat_lp = H_lp_spiral(:) .* kdat(:);
+                
+                % Get image space data by inverse nufft
+                imdat = G_SNAILS' * (W_2D_spiral * kdat(:));
+                imdat_lp = G_SNAILS' * (W_2D_spiral * kdat_lp(:));
+                
+                % Subtract out phase of low-pass data
+                imdat = imdat .* exp(-1i*angle(imdat_lp));
+                imdat = embed(imdat, true(dim_2D));
+                imdat = ir_wls_init_scale(G_SNAILS, kdat(:), imdat);
+                
+                % If niter_SNAILS > 1, loop through iterations
+                for itr_SNAILS = 2:args.niter_SNAILS
+                    
+                    % Get kspace data by fourier transforming image space
+                    kdat = fftc(imdat,1:2);
+                    kdat_lp = kdat .* H_lp_cart;
+                    
+                    % Get image space data by inverse 3D fft
+                    imdat = ifftc(kdat,1:2);
+                    imdat_lp = ifftc(kdat_lp,1:2);
+                    
+                    % Subtract out phase of low-pass data
+                    imdat = imdat .* exp(-1i*angle(imdat_lp));
+                    
+                end
+                
+                % Get final corrected kspace data and overwrite raw signal
+                kdat = G_SNAILS * imdat(:);
+                raw(framen,:,echon) = kdat;
+                
+            end
+        end
+        fprintf(' Done.');
+    end
     
-    % Create Gmri object
+%% Set up reconstruction
+    
+    % Concatenate kspace
     kspace = [reshape(ks(:,1,:,:),[],1), ...
         reshape(ks(:,2,:,:),[],1), ...
         reshape(ks(:,3,:,:),[],1)];
+    
+    % Mask out kspace data above kmax to prevent fov issues in NUFFT
     kmask = abs(2*pi*vecnorm(kspace.*fov./dim,2,2)) <= pi;
+        
+    % Create Gmri object
     nufft_args = {dim,...
         6*ones(1,3),...
         2*dim,...
@@ -272,7 +375,7 @@ function im_all = recon3dflex(varargin)
         'table',...
         2^10,...
         'minmax:kb'};
-    Gm = Gmri(kspace(kmask,:), immask, ...
+    Gm = Gmri(kspace(kmask,:), true(dim), ...
         'fov', fov, 'basis', {'rect'}, 'nufft', nufft_args(:)');
     niter_pcg = args.niter_pcg; % extract to avoid broadcasting args into parfor
     
@@ -286,7 +389,7 @@ function im_all = recon3dflex(varargin)
     % Reconstruct point spread function
     fprintf('\nCalculating PSF ...');
     psf = Gm' * (W * ones(sum(kmask),1));
-    psf = embed(psf,immask);
+    psf = embed(psf,true(dim));
     fprintf(' Done.');
     
     % Correct smap for single-coil data
@@ -295,7 +398,7 @@ function im_all = recon3dflex(varargin)
     end
     
     % Make quadratic regularizer for PCG recon
-    R = Reg1(ones(dim), 'beta', 2^-12 * sum(kmask)/3, 'mask', immask);
+    R = Reg1(ones(dim), 'beta', 2^-12 * sum(kmask)/3, 'mask', true(dim));
     C = R.C;
 
     % Use only nufft for fourier encoding if niter < 0
@@ -348,7 +451,7 @@ function im_all = recon3dflex(varargin)
         Ac = repmat({[]},ncoils,1);
         for coiln = 1:ncoils
             tmp = args.smap(:,:,:,coiln);
-            tmp = Gdiag(tmp(immask),'mask',immask);
+            tmp = Gdiag(tmp(true(dim)),'mask',true(dim));
             Ac{coiln} = Gm * tmp;
         end
         A = block_fatrix(Ac, 'type', 'col');
@@ -388,14 +491,14 @@ function im_all = recon3dflex(varargin)
         
         % Recon preconditioner using conjugate-phase
         im_cp = A' * reshape(W * data_n, [], 1);
-        im_cp = embed(im_cp,immask);
+        im_cp = embed(im_cp,true(dim));
         im_cp = ir_wls_init_scale(A, data_n(:), im_cp);
         
         % Recon using preconditioned conjugate gradient (iterative)
         if niter_pcg > 0
-            im_pcg = qpwls_pcg1(im_cp(immask), A, 1, data_n(:), C, ...
+            im_pcg = qpwls_pcg1(im_cp(true(dim)), A, 1, data_n(:), C, ...
                 'niter', niter_pcg);
-            im_all(:,:,:,n) = embed(im_pcg,immask);
+            im_all(:,:,:,n) = embed(im_pcg,true(dim));
             
         % ...or save image with CP recon
         else
