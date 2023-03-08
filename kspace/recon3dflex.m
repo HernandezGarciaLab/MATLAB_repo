@@ -127,7 +127,7 @@ function im_all = recon3dflex(varargin)
         'niter_pcg',    0, ... % Max number of iterations for IR
         'niter_dcf',    15, ... % Max number of itr for dcf
         'niter_SNAILS', 0, ... % Max number of itr for SNAILS algorithm
-        'L_SNAILS',     0.05, ... % Low-pass window size for SNAILS algorithm
+        'L_SNAILS',     0.001, ... % Low-pass window size for SNAILS algorithm
         'frames',       'all', ... % Frames to recon
         'clipechoes',   [0 0], ... % Number of echoes to remove
         'resfactor',    1, ... % Resolution upsampling factor
@@ -135,7 +135,7 @@ function im_all = recon3dflex(varargin)
         'smap',         [], ... % Sensitivity map for coil combination
         'girf',         '20230206UHP3T_rbw125.girf', ... % girf file to use
         'despike',      {[]}, ... % linked frames to despike
-        'nramp',        50, ... % Number of ramp points in spiral traj
+        'nramp',        50, ... % Number of ramp points in spiral tr.paj
         'scaleoutput',  1, ... % Option to scale output to full dynamic range
         'outputtag',    [] ... % Output filename tag
         );
@@ -311,7 +311,7 @@ function im_all = recon3dflex(varargin)
             'mask', kmask_2D);
         
         % Make windowing function for spiral and cartesian coordinates
-        H_lp = @(k) exp(-(pi/2 * vecnorm(k,2,2) / L_SNAILS ).^2);
+        H_lp = @(k) exp(-(pi/2 * vecnorm(k,2,2) / L_SNAILS).^2);
         H_lp_spiral = H_lp([kx_2D_spiral,ky_2D_spiral]);
         H_lp_cart = reshape(H_lp([kx_2D_cart(:),ky_2D_cart(:)]), dim_2D);
         
@@ -358,7 +358,6 @@ function im_all = recon3dflex(varargin)
     end
     
 %% Set up reconstruction
-    
     % Concatenate kspace
     kspace = [reshape(ks(:,1,:,:),[],1), ...
         reshape(ks(:,2,:,:),[],1), ...
@@ -413,17 +412,15 @@ function im_all = recon3dflex(varargin)
     
     if ~isempty(args.smap) || ncoils == 1
         
-        fprintf(' image timeseries (with sensitivity encoding)...');
-        
         if isempty(args.smap)
+            fprintf(' image timeseries (single coil)...');
             % If single coil, sensitivity is assumed to be uniform
             args.smap = ones(dim);
             
         elseif ischar(args.smap) && strcmpi(args.smap,'espirit')
             % Estimate sense map with espirit
-            fprintf('Estimating sensitivity map using espirit (BART)... ');
-            imc = recon3dflex(varargin{:}, ...
-                'resfactor', args.resfactor*0.5,'smap',[]);
+            fprintf(' image timeseries; estimating sensitivity map using espirit (BART)... ');
+            imc = recon3dflex(varargin{:},'smap',[]);
             args.smap = bart('ecalib -b0 -m1', fftc(imc,1:3));
             args.smap = regrid(args.smap, ... % no zoom factor
                 'resfactor', dim./size(args.smap(:,:,:,1)));
@@ -438,6 +435,7 @@ function im_all = recon3dflex(varargin)
                 fprintf('SENSE map saved to smap_*%s.nii',args.outputtag);
             end
         else    
+           fprintf(' image timeseries (with sensitivity encoding)...');
            % Correct size of smap and apply zoom factor if needed
             args.smap = regrid(args.smap, ...
                 'zoomfactor',[args.zoomfactor*ones(1,3),1], ...
