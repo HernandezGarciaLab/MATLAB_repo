@@ -3134,3 +3134,121 @@ if rdbm_rev == 28.002
 
 end
 
+% RDBM revision 28.003
+if rdbm_rev == 28.003 
+  a.firstaxtime = fread(my_file, 1, 'float64');
+  for id = 1 : 31
+    a.double_padding(id) = fread(my_file, 1, 'float64');
+  end
+  a.zerocell = fread(my_file, 1, 'float32');
+  a.cellspace = fread(my_file, 1, 'float32');
+  a.srctodet = fread(my_file, 1, 'float32');
+  a.srctoiso = fread(my_file, 1, 'float32');
+  for id = 1 : 32
+    a.float_padding(id) = fread(my_file, 1, 'float32');
+  end
+  a.ex_delta_cnt = fread(my_file, 1, 'int32');
+  a.ex_complete = fread(my_file, 1, 'int32');
+  a.ex_seriesct = fread(my_file, 1, 'int32');
+  a.ex_numarch = fread(my_file, 1, 'int32');
+  a.ex_numseries = fread(my_file, 1, 'int32');
+  a.ex_numunser = fread(my_file, 1, 'int32');
+  a.ex_toarchcnt = fread(my_file, 1, 'int32');
+  a.ex_prospcnt = fread(my_file, 1, 'int32');
+  a.ex_modelnum = fread(my_file, 1, 'int32');
+  a.ex_modelcnt = fread(my_file, 1, 'int32');
+  a.patCheckSum = fread(my_file, 1, 'int32');
+  for id = 1 : 31
+    a.int_padding1(id) = fread(my_file, 1, 'int32');
+  end
+  a.numcells = fread(my_file, 1, 'int32');
+  a.magstrength = fread(my_file, 1, 'int32');
+  a.patweight = fread(my_file, 1, 'int32');
+  a.ex_datetime = fread(my_file, 1, 'int32');
+  a.ex_lastmod = fread(my_file, 1, 'int32');
+  a.patChecksumType = fread(my_file, 1, 'int32');
+  for id = 1 : 26
+    a.int_padding2(id) = fread(my_file, 1, 'int32');
+  end
+  a.ex_no = fread(my_file, 1, 'uint16');
+  a.ex_uniq = fread(my_file, 1, 'int16');
+  a.detect = fread(my_file, 1, 'int16');
+  a.tubetyp = fread(my_file, 1, 'int16');
+  a.dastyp = fread(my_file, 1, 'int16');
+  a.num_dcnk = fread(my_file, 1, 'int16');
+  a.dcn_len = fread(my_file, 1, 'int16');
+  a.dcn_density = fread(my_file, 1, 'int16');
+  a.dcn_stepsize = fread(my_file, 1, 'int16');
+  a.dcn_shiftcnt = fread(my_file, 1, 'int16');
+  a.patage = fread(my_file, 1, 'int16');
+  a.patian = fread(my_file, 1, 'int16');
+  a.patsex = fread(my_file, 1, 'int16');
+  a.ex_format = fread(my_file, 1, 'int16');
+  a.trauma = fread(my_file, 1, 'int16');
+  a.protocolflag = fread(my_file, 1, 'int16');
+  a.study_status = fread(my_file, 1, 'int16');
+  for id = 1 : 35
+    a.short_padding(id) = fread(my_file, 1, 'int16');
+  end
+  a.hist = freadc(my_file, 257);
+  a.refphy = freadc(my_file, 65);
+  a.diagrad = freadc(my_file, 65);
+  a.operator_new = freadc(my_file, 65);
+  a.ex_desc = freadc(my_file, 65);
+  a.ex_typ = freadc(my_file, 3);
+  a.ex_sysid = freadc(my_file, 17);
+  a.ex_alloc_key = freadc(my_file, 13);
+  a.ex_diskid = fread(my_file, 1, 'char');
+  a.hospname = freadc(my_file, 33);
+  for id = 1 : 4
+    a.ex_suid(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 2
+    a.ex_verscre(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 2
+    a.ex_verscur(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.uniq_sys_id(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.service_id(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 4
+    a.mobile_loc(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 32
+    a.study_uid(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 32
+    a.refsopcuid(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 32
+    a.refsopiuid(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 65
+    a.patnameff(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 65
+    a.patidff(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 17
+    a.reqnumff(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 9
+    a.dateofbirth(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 32
+    a.mwlstudyuid(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.mwlstudyid(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 232
+    a.ex_padding(id) = fread(my_file, 1, 'char');
+  end
+
+
+end
+

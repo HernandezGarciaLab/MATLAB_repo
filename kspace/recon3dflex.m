@@ -410,14 +410,13 @@ function im_all = recon3dflex(varargin)
         fprintf('\nSetting up %d-iteration PCG reconstruction model for',args.niter_pcg)
     end
     
-    if ~isempty(args.smap) || ncoils == 1
+    if ncoils == 1
+        fprintf(' image timeseries (single coil)...');
+        % If single coil, sensitivity is assumed to be uniform
+        args.smap = ones(dim);
         
-        if isempty(args.smap)
-            fprintf(' image timeseries (single coil)...');
-            % If single coil, sensitivity is assumed to be uniform
-            args.smap = ones(dim);
-            
-        elseif ischar(args.smap) && strcmpi(args.smap,'espirit')
+    elseif ~isempty(args.smap)
+        if ischar(args.smap) && strcmpi(args.smap,'espirit')
             % Estimate sense map with espirit
             fprintf(' image timeseries; estimating sensitivity map using espirit (BART)... ');
             imc = recon3dflex(varargin{:},'smap',[]);
@@ -434,12 +433,8 @@ function im_all = recon3dflex(varargin)
                     args.scaleoutput);
                 fprintf('SENSE map saved to smap_*%s.nii',args.outputtag);
             end
-        else    
+        else
            fprintf(' image timeseries (with sensitivity encoding)...');
-           % Correct size of smap and apply zoom factor if needed
-            args.smap = regrid(args.smap, ...
-                'zoomfactor',[args.zoomfactor*ones(1,3),1], ...
-                'resfactor', dim./size(args.smap(:,:,:,1))); 
         end
         
         % Correct size of W

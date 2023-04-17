@@ -179,3 +179,18 @@ if rdbm_rev == 28.002
 
 end
 
+% RDBM revision 28.003
+if rdbm_rev == 28.003 
+  for id1 = 1 : 1024
+    for id2 = 1 : 3
+        a.diffusion_grad_amp(id1,id2) = fread(my_file, 1, 'float32');
+    end
+  end
+  a.hoec_bases.hoec_coef = fread(my_file, [3, 56], 'float32')';
+  a.hoec_bases.hoec_xorder = fread(my_file, [1,56], 'int32')';
+  a.hoec_bases.hoec_yorder = fread(my_file, [1,56], 'int32')';
+  a.hoec_bases.hoec_zorder = fread(my_file, [1,56], 'int32')';
+
+
+end
+

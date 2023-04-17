@@ -5805,7 +5805,283 @@ if rdbm_rev == 28.002
   a.defineFilter_noice_reduction = fread(my_file, 1, 'int32');
   a.defineFilter_sharpen = fread(my_file, 1, 'int32');
   a.anatomicalLocSeriesNo = fread(my_file, 1, 'int32');
-  for id = 1 : 14
+  a.seriesPerPhase = fread(my_file, 1, 'int32');
+  for id = 1 : 13
+    a.int_padding2(id) = fread(my_file, 1, 'int32');
+  end
+  a.se_exno = fread(my_file, 1, 'uint16');
+  a.echo1_window = fread(my_file, 1, 'uint16');
+  a.echo2_window = fread(my_file, 1, 'uint16');
+  a.echo3_window = fread(my_file, 1, 'uint16');
+  a.echo4_window = fread(my_file, 1, 'uint16');
+  a.echo5_window = fread(my_file, 1, 'uint16');
+  a.echo6_window = fread(my_file, 1, 'uint16');
+  a.echo7_window = fread(my_file, 1, 'uint16');
+  a.echo8_window = fread(my_file, 1, 'uint16');
+  a.echo8_level = fread(my_file, 1, 'int16');
+  a.echo7_level = fread(my_file, 1, 'int16');
+  a.echo6_level = fread(my_file, 1, 'int16');
+  a.echo5_level = fread(my_file, 1, 'int16');
+  a.echo4_level = fread(my_file, 1, 'int16');
+  a.echo3_level = fread(my_file, 1, 'int16');
+  a.echo2_level = fread(my_file, 1, 'int16');
+  a.echo1_level = fread(my_file, 1, 'int16');
+  a.se_typ = fread(my_file, 1, 'int16');
+  a.se_source = fread(my_file, 1, 'int16');
+  a.se_plane = fread(my_file, 1, 'int16');
+  a.scan_type = fread(my_file, 1, 'int16');
+  a.se_uniq = fread(my_file, 1, 'int16');
+  a.se_contrast = fread(my_file, 1, 'int16');
+  a.se_pseq = fread(my_file, 1, 'int16');
+  a.se_sortorder = fread(my_file, 1, 'int16');
+  a.se_nacq = fread(my_file, 1, 'int16');
+  a.xbasest = fread(my_file, 1, 'int16');
+  a.xbaseend = fread(my_file, 1, 'int16');
+  a.xenhst = fread(my_file, 1, 'int16');
+  a.xenhend = fread(my_file, 1, 'int16');
+  a.table_entry = fread(my_file, 1, 'int16');
+  a.SwingAngle = fread(my_file, 1, 'int16');
+  a.LateralOffset = fread(my_file, 1, 'int16');
+  a.GradientCoil = fread(my_file, 1, 'int16');
+  a.se_subtype = fread(my_file, 1, 'int16');
+  a.BWRT = fread(my_file, 1, 'int16');
+  a.assetcal_serno = fread(my_file, 1, 'int16');
+  a.assetcal_scnno = fread(my_file, 1, 'int16');
+  a.content_qualifn = fread(my_file, 1, 'int16');
+  a.purecal_serno = fread(my_file, 1, 'int16');
+  a.purecal_scnno = fread(my_file, 1, 'int16');
+  a.ideal = fread(my_file, 1, 'int16');
+  a.verify_corners = fread(my_file, 1, 'int16');
+  a.asset_cal_type = fread(my_file, 1, 'int16');
+  a.pure_compatible = fread(my_file, 1, 'int16');
+  a.purecal_type = fread(my_file, 1, 'int16');
+  a.locMode = fread(my_file, 1, 'int16');
+  for id = 1 : 29
+    a.short_padding(id) = fread(my_file, 1, 'int16');
+  end
+  for id = 1 : 2
+    a.se_verscre(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 2
+    a.se_verscur(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 4
+    a.se_suid(id) = fread(my_file, 1, 'char');
+  end
+  a.se_alloc_key = freadc(my_file, 13);
+  a.se_diskid = fread(my_file, 1, 'char');
+  a.se_desc = freadc(my_file, 65);
+  a.pr_sysid = freadc(my_file, 9);
+  a.pansysid = freadc(my_file, 9);
+  a.anref = freadc(my_file, 3);
+  a.prtcl = freadc(my_file, 25);
+  a.start_ras = fread(my_file, 1, 'char');
+  a.end_ras = fread(my_file, 1, 'char');
+  a.defineFilter_name = freadc(my_file, 20);
+  a.defineFilter_description = freadc(my_file, 30);
+  for id = 1 : 32
+    a.series_uid(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 32
+    a.landmark_uid(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 32
+    a.equipmnt_uid(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 32
+    a.refsopcuids(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 32
+    a.refsopiuids(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.schacitval(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.schacitdesc(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 64
+    a.schacitmea(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 65
+    a.schprocstdesc(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.schprocstid(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.reqprocstid(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.perprocstid(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 65
+    a.perprocstdesc(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.reqprocstid2(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.reqprocstid3(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.schprocstid2(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.schprocstid3(id) = fread(my_file, 1, 'char');
+  end
+  for id1 = 1 : 4
+    for id2 = 1 : 32
+        a.refImgUID(id1,id2) = fread(my_file, 1, 'char');
+    end
+  end
+  for id = 1 : 64
+    a.PdgmStr(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 256
+    a.PdgmDesc(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 64
+    a.PdgmUID(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.ApplName(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.ApplVer(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 12
+    a.asset_appl(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 96
+    a.se_padding2(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 64
+    a.pure_cfg_params(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 30
+    a.dzPETMR(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 64
+    a.anatomicalReference(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.anatomicalPlane(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 64
+    a.priorAnatomicalReference(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 16
+    a.priorAnatomicalPlane(id) = fread(my_file, 1, 'char');
+  end
+  for id = 1 : 11
+    a.se_padding(id) = fread(my_file, 1, 'char');
+  end
+
+
+end
+
+% RDBM revision 28.003
+if rdbm_rev == 28.003 
+  for id = 1 : 11
+    a.double_padding(id) = fread(my_file, 1, 'float64');
+  end
+  for id = 1 : 7
+    a.scicValue_a(id) = fread(my_file, 1, 'float64');
+  end
+  for id = 1 : 7
+    a.scicValue_s(id) = fread(my_file, 1, 'float64');
+  end
+  for id = 1 : 7
+    a.scicValue_c(id) = fread(my_file, 1, 'float64');
+  end
+  a.se_pds_a = fread(my_file, 1, 'float32');
+  a.se_pds_c = fread(my_file, 1, 'float32');
+  a.se_pds_u = fread(my_file, 1, 'float32');
+  a.lmhor = fread(my_file, 1, 'float32');
+  a.start_loc = fread(my_file, 1, 'float32');
+  a.end_loc = fread(my_file, 1, 'float32');
+  a.echo1_alpha = fread(my_file, 1, 'float32');
+  a.echo1_beta = fread(my_file, 1, 'float32');
+  a.echo2_alpha = fread(my_file, 1, 'float32');
+  a.echo2_beta = fread(my_file, 1, 'float32');
+  a.echo3_alpha = fread(my_file, 1, 'float32');
+  a.echo3_beta = fread(my_file, 1, 'float32');
+  a.echo4_alpha = fread(my_file, 1, 'float32');
+  a.echo4_beta = fread(my_file, 1, 'float32');
+  a.echo5_alpha = fread(my_file, 1, 'float32');
+  a.echo5_beta = fread(my_file, 1, 'float32');
+  a.echo6_alpha = fread(my_file, 1, 'float32');
+  a.echo6_beta = fread(my_file, 1, 'float32');
+  a.echo7_alpha = fread(my_file, 1, 'float32');
+  a.echo7_beta = fread(my_file, 1, 'float32');
+  a.echo8_alpha = fread(my_file, 1, 'float32');
+  a.echo8_beta = fread(my_file, 1, 'float32');
+  a.landmark = fread(my_file, 1, 'float32');
+  a.tablePosition = fread(my_file, 1, 'float32');
+  a.pure_lambda = fread(my_file, 1, 'float32');
+  a.pure_tuning_factor_surface = fread(my_file, 1, 'float32');
+  a.pure_tuning_factor_body = fread(my_file, 1, 'float32');
+  a.pure_derived_cal_fraction = fread(my_file, 1, 'float32');
+  a.pure_derived_cal_reapodization = fread(my_file, 1, 'float32');
+  a.pure_blur = fread(my_file, 1, 'float32');
+  a.pure_mix_lambda = fread(my_file, 1, 'float32');
+  a.pure_mix_tuning_factor_surface = fread(my_file, 1, 'float32');
+  a.pure_mix_tuning_factor_body = fread(my_file, 1, 'float32');
+  a.pure_mix_blur = fread(my_file, 1, 'float32');
+  a.pure_mix_alpha = fread(my_file, 1, 'float32');
+  a.pure_mix_exp_wt = fread(my_file, 1, 'float32');
+  a.topOfHead = fread(my_file, 1, 'float32');
+  a.zLoc = fread(my_file, 1, 'float32');
+  for id = 1 : 12
+    a.anatomicalComputedVolume(id) = fread(my_file, 1, 'float32');
+  end
+  for id = 1 : 4
+    a.float_padding(id) = fread(my_file, 1, 'float32');
+  end
+  a.se_complete = fread(my_file, 1, 'int32');
+  a.se_numarch = fread(my_file, 1, 'int32');
+  a.se_imagect = fread(my_file, 1, 'int32');
+  a.se_numimages = fread(my_file, 1, 'int32');
+  a.se_delta_cnt = fread(my_file, 1, 'int32');
+  a.se_numunimg = fread(my_file, 1, 'int32');
+  a.se_toarchcnt = fread(my_file, 1, 'int32');
+  a.topOfHeadValid = fread(my_file, 1, 'int32');
+  for id = 1 : 32
+    a.int_padding1(id) = fread(my_file, 1, 'int32');
+  end
+  a.se_datetime = fread(my_file, 1, 'int32');
+  a.se_actual_dt = fread(my_file, 1, 'int32');
+  a.position = fread(my_file, 1, 'int32');
+  a.entry = fread(my_file, 1, 'int32');
+  a.se_lndmrkcnt = fread(my_file, 1, 'int32');
+  a.se_lastmod = fread(my_file, 1, 'int32');
+  a.ExpType = fread(my_file, 1, 'int32');
+  a.TrRest = fread(my_file, 1, 'int32');
+  a.TrActive = fread(my_file, 1, 'int32');
+  a.DumAcq = fread(my_file, 1, 'int32');
+  a.ExptTimePts = fread(my_file, 1, 'int32');
+  a.cal_pass_set_vector = fread(my_file, 1, 'int32');
+  a.cal_nex_vector = fread(my_file, 1, 'int32');
+  a.cal_weight_vector = fread(my_file, 1, 'int32');
+  a.pure_filtering_mode = fread(my_file, 1, 'int32');
+  a.isoVectorZ = fread(my_file, 1, 'int32');
+  a.isMRAC = fread(my_file, 1, 'int32');
+  a.pure_blur_enable = fread(my_file, 1, 'int32');
+  a.pure_mix_blur_enable = fread(my_file, 1, 'int32');
+  a.pure_mix_otsu_class_qty = fread(my_file, 1, 'int32');
+  a.pure_mix_erode_dist = fread(my_file, 1, 'int32');
+  a.pure_mix_dilate_dist = fread(my_file, 1, 'int32');
+  a.pure_mix_aniso_blur = fread(my_file, 1, 'int32');
+  a.pure_mix_aniso_erode_dist = fread(my_file, 1, 'int32');
+  a.pure_mix_aniso_dilate_dist = fread(my_file, 1, 'int32');
+  a.ePure_enable = fread(my_file, 1, 'int32');
+  a.se_no = fread(my_file, 1, 'int32');
+  a.defineFilter_noice_reduction = fread(my_file, 1, 'int32');
+  a.defineFilter_sharpen = fread(my_file, 1, 'int32');
+  a.anatomicalLocSeriesNo = fread(my_file, 1, 'int32');
+  a.seriesPerPhase = fread(my_file, 1, 'int32');
+  for id = 1 : 13
     a.int_padding2(id) = fread(my_file, 1, 'int32');
   end
   a.se_exno = fread(my_file, 1, 'uint16');
