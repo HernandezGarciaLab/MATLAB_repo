@@ -2,7 +2,7 @@
 % (this section is NOT skippable)
 
 % **** SET PARAMETERS ****
-im_name = 'timeseries_mag.nii'; % set timeseries name
+im_name = 'im_mag.nii'; % set timeseries name
 % ************************
 
 % Perform operations
@@ -25,7 +25,7 @@ rewritenii(im_name); % rewrite nii file to maintain consistent header fmt
 %   don't want to mask at all)
 
 % **** SET PARAMETERS ****
-mask_im = '../human_SOS_cbf_4shot_itr1/timeseries_mag.nii'; % name of img to use for mask generation
+mask_im = '../asldata_e03633_s00011_93696/im_mag.nii'; % name of img to use for mask generation
 mask_thresh = 0.55; % intensity threshold for masking
 mask_fwhm = 0.1; % fwhm for gaussian smoothing kernel (as fraction of fov)
 % ************************
@@ -76,7 +76,7 @@ rewritenii(im_name); % rewrite nii file to maintain consistent header fmt
 % (this section is NOT skippable)
 
 % **** SET PARAMETERS ****
-stim_tstart = -13.5;
+stim_tstart = -9;
 stim_toff = 30;
 stim_ton = 30;
 % ************************
