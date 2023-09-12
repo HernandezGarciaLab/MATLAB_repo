@@ -103,7 +103,7 @@ function im_lb = lbview(im, varargin)
     end
     
     % Warn user if image is complex
-    if iscomplex(im)
+    if any(iscomplex(im(:)))
         warning('Complex images are not supported, using absolute value');
         im = abs(im);
     end

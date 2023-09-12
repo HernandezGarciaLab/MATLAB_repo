@@ -173,6 +173,7 @@ function zscore = spmJr(im,A,varargin)
     zscore = reshape(zscore',[dim,ncon]);
     variance = reshape(variance',[dim,ncon]);
     residual = reshape(residual',[dim,nframes]);
+    mask = reshape(mask,dim);
     
     % Save data to files
     if nargout < 1

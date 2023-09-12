@@ -109,7 +109,7 @@ function im_ortho = orthoview(im,varargin)
     end
     
     % Warn user if image is complex
-    if iscomplex(im)
+    if any(iscomplex(im(:)))
         warning('Complex images are not supported, using absolute value');
         im = abs(im);
     end
@@ -150,7 +150,7 @@ function im_ortho = orthoview(im,varargin)
         grid off
         axis off
         if args.colorbar
-            colorbar;
+%             colorbar;
         end
         set(gca,'colormap',args.colormap);
         caxis(args.caxis);

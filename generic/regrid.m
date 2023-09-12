@@ -55,6 +55,7 @@ function data_rs = regrid(data,varargin)
     defaults = struct( ...
         'zoomFactor',   ones(1,ndims(data)), ...
         'resFactor',    ones(1,ndims(data)), ...
+        'shift',        zeros(1,ndims(data)), ...
         'interp',       'cubic', ...
         'extrap',       'none');
     
@@ -79,6 +80,9 @@ function data_rs = regrid(data,varargin)
             ones(1,ndims(data)-size(args.resFactor,2))];
     end
     
+    % Shift the data
+    data = circshift(data,args.shift);
+
     % Make grid arrays using imgrid
     G_in = cell(1,ndims(data));
     G_out = cell(1,ndims(data));
