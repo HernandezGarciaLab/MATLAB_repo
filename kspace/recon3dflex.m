@@ -29,14 +29,14 @@ function im = recon3dflex(varargin)
 %   - 'raw':
 %       - raw data structure
 %       - complex double/float array of dimensions (nframes x ndat x
-%           nleaves x nslices x ncoils)
+%           nechos x ntrains x ncoils)
 %       - if either raw or info is left empty, function will read data from
 %           the Pfile instead (see 'pfile' or type 'help readpfile' for
 %           more information)
 %       - default is empty (reads raw data from file)
 %   - 'info'
 %       - pfile information structure
-%       - structure containing fields: ndat, nleaves, nframes, nslices,
+%       - structure containing fields: ndat, nechos, nframes, ntrains,
 %           ncoils, tr, te, dim, fov, slthick
 %       - type 'help readpfile' for more information on info structure
 %           format and field data types
@@ -150,36 +150,40 @@ function im = recon3dflex(varargin)
 %       - if im is returned, no images will be saved to nii files
 %
 
-    % Define default arguments
-    defaults = struct(...
-        'raw',          [], ... % Raw data
-        'info',         [], ... % Info structure
-        'pfile',        'P*.7', ... % Search string for Pfile
-        'tol',          1e-5, ... % Kspace distance tolerance
-        'niter',        0, ... % Max number of iterations for IR
-        'frames',       'all', ... % Frames to recon
-        'clipechoes',   [0 0], ... % Number of echoes to remove
-        'resfactor',    1, ... % Resolution upsampling factor
-        'zoomfactor',   1, ... % FOV zoom factor
-        'smap',         [], ... % Sensitivity map for coil combination
-        'isovox',       1, ... % flag for isotropic voxels between x&y / z
-        'girf',         '20230206UHP3T_rbw125.girf', ... % girf file to use
-        'ndel',         0, ... % Gradient sample delay
-        'despike',      {[]}, ... % linked frames to despike
-        'nramp',        [], ... % Number of ramp points in spiral traj
-        'pdorder',      -1, ... % Order of phase detrending poly fit
-        't2',           [], ... % Option to perform t2 compensation
-        'scaleoutput',  1, ... % Option to scale output to full dynamic range
-        'outputtag',    [] ... % Output filename tag
-        );
+% Define default arguments
+defaults = struct(...
+    'raw',          [], ... % Raw data
+    'info',         [], ... % Info structure
+    'pfile',        'P*.7', ... % Search string for Pfile
+    'tol',          1e-5, ... % Kspace distance tolerance
+    'niter',        0, ... % Max number of iterations for IR
+    'frames',       'all', ... % Frames to recon
+    'clipechoes',   [0 0], ... % Number of echoes to remove
+    'resfactor',    1, ... % Resolution upsampling factor
+    'zoomfactor',   1, ... % FOV zoom factor
+    'smap',         [], ... % Sensitivity map for coil combination
+    'isovox',       1, ... % flag for isotropic voxels between x&y / z
+    'girf',         '20230206UHP3T_rbw125.girf', ... % girf file to use
+    'ndel',         0, ... % Gradient sample delay
+    'despike',      {[]}, ... % linked frames to despike
+    'nramp',        [], ... % Number of ramp points in spiral traj
+    'pdorder',      -1, ... % Order of phase detrending poly fit
+    't2',           [], ... % Option to perform t2 compensation
+    'scaleoutput',  1, ... % Option to scale output to full dynamic range
+    'dt',           4, ... % Sampling period (usec)
+    'outputtag',    [] ... % Output filename tag
+    );
 
-    % Start timer
-    t = tic;
-    
+% Start timer
+t = tic;
+
 %% Set up data, arguments and info
-    % Parse through variable inputs using matlab's built-in input parser
-    args = vararginparser(defaults,varargin{:});
-    
+
+% Parse through variable inputs using matlab's built-in input parser
+args = vararginparser(defaults,varargin{:});
+
+%% Read in the data
+%{
     % Get raw data and info
     if (isempty(args.raw) || isempty(args.info)) % If reading from Pfile
         [raw,info] = formatpfile(args.pfile);
@@ -201,15 +205,103 @@ function im = recon3dflex(varargin)
         fprintf('\n\t--> reconning all frames');
         args.frames = 1:info.nframes;
     end
-    
-%% Process Trajectory
+%}
+
+%parpool(feature('numcores'),'IdleTimeout',90);
+
+%% Load data (new)
+% Load in raw data
+[raw,phdr] = readpfile(args.pfile);
+
+% data is ordered differently in asl3dflex and vsasl3dflex
+%if strcmpi(phdr.image.psdname,'asl3dflex') % new sequence
+if 1
+    ndat = phdr.rdb.frame_size;
+    nechoes = phdr.rdb.user2;
+    ncoils = phdr.rdb.dab(2) - phdr.rdb.dab(1) + 1;
+    ntrains = phdr.rdb.user1;
+    nframes = phdr.rdb.user0;
+    tr = phdr.image.tr*1e-3;
+    dim = phdr.image.dim_X;
+    fov = phdr.image.dfov/10;
+else % old sequence
+    ndat = phdr.rdb.frame_size;
+    nechoes = phdr.rdb.nslices;
+    ncoils = phdr.rdb.dab(2) - phdr.rdb.dab(1) + 1;
+    ntrains = phdr.image.user0;
+    nframes = phdr.rdb.nframes / ntrains;
+    tr = phdr.image.tr*1e-3;
+    dim = phdr.image.dim_X;
+    fov = phdr.image.dfov/10;
+end
+
+%{
+info.nleaves --> ntrains
+info.nslices --> nechoes
+%}
+
+% reshape: ndat x ntrains*nframes x nechoes x 1 x ncoils
+%           --> ndat x ntrains x nframes x nechoes x ncoils
+raw = reshape(raw,ndat,ntrains,nframes,nechoes,ncoils);
+% permute: ndat x ntrains x nframes x nechoes x ncoils
+%           --> nframes x ndat x nechoes x ntrains x ncoils
+raw = permute(raw,[3,1,4,2,5]);
+dt = args.dt;
+
+if strcmp(args.frames,'all')
+    args.frames = 1:nframes;
+else
+    nframes = length(args.frames);
+end
+
+workDir = pwd;
+
+%% Process Trajectory (new)
+% Load in kspace trajectory & view transformation matrices
+ktraj = dir('ktraj*.txt');
+ktraj = load(ktraj(1).name);
+kviews = dir('kviews*.txt');
+kviews = load(kviews(1).name);
+
+% Reshape transformation matrices as an array of 3x3 matrices
+T = permute(reshape(kviews(:,end-8:end)',3,3,[]),[2,1,3]);
+
+% Allocate space for entire trajectory
+ks = zeros(ndat,3,nechoes,ntrains);
+
+% Transform each view
+for trainn = 1:ntrains
+    for echon = 1:nechoes
+        % Index the transformation matrix for current view
+        mtxi = (trainn-1)*nechoes + echon;
+
+        % Transform the trajectory
+        ks(:,:,echon,trainn) = ktraj*T(:,:,mtxi)';
+    end
+end
+
+% (old) Determine nramp and navpoints from 1st platter envelope
+navpts = find(vecnorm(ktraj,2,2) < args.tol);
+navpts(navpts > ndat*3/4) = []; % reject navpts in first 1/4
+navpts(navpts < ndat*1/4) = []; % reject navpts in last 1/4
+
+if isempty(args.nramp)
+    args.nramp = 10;
+    %[~,args.nramp] = max(vecnorm(ktraj(1:round(ndat/2),:),2,2));
+    %args.nramp = round(0.1*args.nramp) ; % reject only up to 10% of the max
+end
+
+%%
+%% Process Trajectory  (old section)
+%{
     % Get un-transformed kspace trajectory and view transformations
     ks_0 = load([info.wd '/ktraj_cart.txt']);
     kviews = load([info.wd '/kviews.txt']);
     
     % Determine trajectory type based on kz encoding fractions
     isSOS = any(kviews(:,3) < 1);
-    
+
+
     % Determine nramp and navpoints from 1st platter envelope
     navpts = find(vecnorm(ks_0,2,2) < args.tol);
     navpts(navpts > info.ndat*3/4) = []; % reject navpts in first 1/4
@@ -231,204 +323,209 @@ function im = recon3dflex(varargin)
             ks(:,:,leafn,slicen) = (T*ks_0')';
         end
     end
+%}
 
-    % Correct for gradient distortion if GIRF is passed
-    if ~isempty(args.girf)
-        fprintf('\nCorrecting gradient distortion based on GIRF file: %s...', ...
-            args.girf);
-        girf = readmatrix(args.girf,'FileType','text');
-        grad = padarray(diff(ks,1),[1,0,0,0],0,'pre');
-        grad_corr = zeros(size(grad));
-        for axis = 1:3
-            tmp = convn(grad(:,axis,:,:),girf(:,axis),'full');
-            grad_corr(:,axis,:,:) = tmp(1:info.ndat,1,:,:);
-        end
-        ks = cumsum(grad_corr,1);
-        fprintf(' Done.')
+% Correct for gradient distortion if GIRF is passed
+if ~isempty(args.girf)
+    fprintf('\nCorrecting gradient distortion based on GIRF file: %s...', ...
+        args.girf);
+    girf = readmatrix(args.girf,'FileType','text');
+    grad = padarray(diff(ks,1),[1,0,0,0],0,'pre');
+    grad_corr = zeros(size(grad));
+    for axis = 1:3
+        tmp = convn(grad(:,axis,:,:),girf(:,axis),'full');
+        grad_corr(:,axis,:,:) = tmp(1:ndat,1,:,:);
     end
-    
-    % Clip echoes from end of echo train if specified
-    raw = raw(:,:,:,1+args.clipechoes(1):info.nslices-args.clipechoes(2),:);
-    ks = ks(:,:,:,1+args.clipechoes(1):info.nslices-args.clipechoes(2),:);
-    info.nslices = info.nslices - sum(args.clipechoes);
-    
-    % Make timing array
-    ti = info.dt*(0:info.ndat-1)' + round((info.te - info.dt*info.ndat)/2);
-    ti = repmat(ti,1,info.nleaves,info.nslices);
-    ti = ti + info.dt*info.ndat*permute(0:info.nslices-1,[1 3 2]);
-        
+    ks = cumsum(grad_corr,1);
+    fprintf(' Done.')
+end
+
+% Clip echoes from end of echo train if specified
+raw = raw(:, :, 1+args.clipechoes(1):nechoes-args.clipechoes(2), :, :);
+ks = ks(:, :, 1+args.clipechoes(1):nechoes-args.clipechoes(2), :);
+nechoes = nechoes - sum(args.clipechoes);
+
+% Make timing array
+ti = dt*(0:ndat-1)' + round((phdr.rdb.te - dt*ndat)/2);
+ti = repmat(ti,1,ntrains,nechoes);
+ti = ti + dt*ndat*permute(0:nechoes-1,[1 3 2]);
+
 %% Apply corrections/filters
-    % Despike kspace
-    if ~isempty(args.despike)
-        %{
+% Despike kspace
+if ~isempty(args.despike)
+    %{
 	ttmp = tic;
         fprintf('\nDespiking kspace samples along timecourse...')
         [raw,nspikes] = despike1d(raw,1,'linked',args.despike);
         fprintf(' Done. %d/%d (%.2f%%) of data replaced. %.2fs elapsed.', ...
             nspikes, 2*numel(raw), 100*nspikes/(2*numel(raw)), toc(ttmp));
-	%}
-        fprintf('\nDespiking kspace...')
-        sr = size(raw);
-        Nspikes=0;
-        Ndata = prod(size(raw));
-        SDlevel = 2;  % Threshold for despoking : N of standard deviations
+    %}
+    fprintf('\nDespiking kspace...')
+    sr = size(raw);
 
-        for n=1:sr(3) % shots
-            for m=1:sr(4) % N echoes per train (slices)
-                for p=1:sr(5) % coils
-                    % odd time frames    
-                    tmp = squeeze(raw(args.despike{1},:,n,m,p));
-                    [raw(args.despike{1},:,n,m,p) spikes] = ...
-                        smoothOutliers(tmp,SDlevel);
-                    Nspikes = Nspikes + spikes;
-                    % even time frames
-                    tmp = squeeze(raw(args.despike{2},:,n,m,p));
-                    [raw(args.despike{2},:,n,m,p) spikes] = ...
-                        smoothOutliers(tmp, SDlevel);
-                    Nspikes = Nspikes + spikes;
 
-                end
+    Nspikes=0;
+    Ndata = prod(size(raw));
+    SDlevel = 2;  % Threshold for despiking : N of standard deviations
+
+    for n=1:sr(3) % shots
+        for m=1:sr(4) % N echoes per train (slices)
+            for p=1:sr(5) % coils
+                % odd time frames
+                tmp = squeeze(raw(args.despike{1},:,n,m,p));
+                [raw(args.despike{1},:,n,m,p) spikes] = ...
+                    smoothOutliers(tmp,SDlevel);
+                Nspikes = Nspikes + spikes;
+                % even time frames
+                tmp = squeeze(raw(args.despike{2},:,n,m,p));
+                [raw(args.despike{2},:,n,m,p) spikes] = ...
+                    smoothOutliers(tmp, SDlevel);
+                Nspikes = Nspikes + spikes;
+
             end
         end
-        fprintf('\rFound %d spikes in %d data.  (%f percent)', ...
-            Nspikes, Ndata, Nspikes/Ndata*100);
-        fprintf('\n...Despiking Done')
     end
+    fprintf('\rFound %d spikes in %d data.  (%f percent)', ...
+        Nspikes, Ndata, Nspikes/Ndata*100);
+    fprintf('\n...Despiking Done')
+end
 
-    % Perform phase detrending
-    if args.pdorder > -1
-        raw = phasedetrend(raw,navpts,args.pdorder);
-    end
-    
-    if strcmpi(args.t2, 'fit')
-        % Make t2map in kspace
-        fprintf('\nFitting average T2 to raw data... ')
-        args.t2 = fitt2(raw,navpts,info.te,info.dt);
-        args.t2 = args.t2 * info.dt * 1e-3;
-        fprintf(' Done. Fitted T2 value: %.1fms', args.t2);
-    end
-    
-    % Correct for gradient sample delay
-    if abs(args.ndel) > 0
-        fprintf('\nCorrecting for delay : %d samples', args.ndel)
-        raw = circshift(raw,args.ndel,2);    
-    end
-    
-    % Remove ramp points
-    fprintf('\nRemoving %d ramp points from data...', args.nramp);
-    ks([1:args.nramp info.ndat-args.nramp:info.ndat],:,:,:) = [];
-    raw(:,[1:args.nramp info.ndat-args.nramp:info.ndat],:,:,:) = [];
-    ti([1:args.nramp info.ndat-args.nramp:info.ndat],:,:) = [];
-    info.ndat = info.ndat - 2*args.nramp;
-    fprintf(' Done.');
-    
+% Perform phase detrending
+if args.pdorder > -1
+    fprintf('\nPerforming %d th order detrending in each echo...', args.pdorder);
+    raw = phasedetrend(raw,navpts,args.pdorder);
+end
+
+if strcmpi(args.t2, 'fit')
+    % Make t2map in kspace
+    fprintf('\nFitting average T2 to raw data... ')
+    args.t2 = fitt2(raw,navpts,phdr.rdb.te,dt);
+    args.t2 = args.t2 * dt * 1e-3;
+    fprintf(' Done. Fitted T2 value: %.1fms', args.t2);
+end
+
+% Correct for gradient sample delay
+if abs(args.ndel) > 0
+    fprintf('\nCorrecting for delay : %d samples', args.ndel)
+    raw = circshift(raw,args.ndel,2);
+end
+
+% Remove ramp points : Not as many as before!!
+fprintf('\nRemoving %d ramp points from data...\n', args.nramp);
+ks([1:args.nramp ndat-args.nramp:ndat],:,:,:) = [];
+raw(:,[1:args.nramp ndat-args.nramp:ndat],:,:,:) = [];
+ti([1:args.nramp ndat-args.nramp:ndat],:,:) = [];
+ndat = ndat - 2*args.nramp;
+
 %% Set up reconstruction
-    % Vectorize fov/dim and apply interpolation factors
-    fov = info.fov*ones(1,3) / args.zoomfactor;
-    dim = round(info.dim*ones(1,3) * args.resfactor);
-    if isSOS && ~args.isovox
-        fov(3) = info.nslices*info.slthick / args.zoomfactor;
-        dim(3) = info.nslices * args.resfactor;
-    end
-    
-    % Create Gmri object
-    kspace = [reshape(ks(:,1,:,:),[],1), ...
-        reshape(ks(:,2,:,:),[],1), ...
-        reshape(ks(:,3,:,:),[],1)];
-    nufft_args = {dim,...
-        6*ones(1,3),...
-        2*dim,...
-        dim/2,...
-        'table',...
-        2^10,...
-        'minmax:kb'};
-    Gm = Gmri(kspace, true(dim), ...
-        'fov', fov, 'basis', {'rect'}, 'nufft', nufft_args(:)');
-    niter = args.niter; % extract to avoid broadcasting args into parfor
-    
-    % Create density compensation using pipe algorithm
-    fprintf('\nCalculating density compensation (Pipe-Menon method, 15 itr)...');
-    dcf = pipedcf(Gm.Gnufft,15);
-    W = Gdiag(dcf(:)./Gm.arg.basis.transform);
-    fprintf(' Done.')
-    
-    % Reconstruct point spread function
-    fprintf('\nCalculating PSF ...');
-    psf = Gm' * reshape(W * ones(numel(ks(:,1,:,:)),1), [], 1);
+% Vectorize fov/dim and apply interpolation factors
+fov = fov*ones(1,3) / args.zoomfactor;
+dim = round(dim*ones(1,3) * args.resfactor);
+%if isSOS && ~args.isovox
+%    fov(3) = nechoes*info.slthick / args.zoomfactor;
+%    dim(3) = nechoes * args.resfactor;
+%end
+
+% Create Gmri object
+kspace = [reshape(ks(:,1,:,:),[],1), ...
+    reshape(ks(:,2,:,:),[],1), ...
+    reshape(ks(:,3,:,:),[],1)];
+nufft_args = {dim,...
+    6*ones(1,3),...
+    2*dim,...
+    dim/2,...
+    'table',...
+    2^10,...
+    'minmax:kb'};
+Gm = Gmri(kspace, true(dim), ...
+    'fov', fov, 'basis', {'rect'}, 'nufft', nufft_args(:)');
+niter = args.niter; % extract to avoid broadcasting args into parfor
+
+% Create density compensation using pipe algorithm
+fprintf('\nCalculating density compensation (Pipe-Menon method, 15 itr)...');
+dcf = pipedcf(Gm.Gnufft,15);
+W = Gdiag(dcf(:)./Gm.arg.basis.transform);
+fprintf(' Done.')
+
+% Reconstruct point spread function
+fprintf('\nCalculating PSF ...');
+psf = Gm' * reshape(W * ones(numel(ks(:,1,:,:)),1), [], 1);
+fprintf(' Done.');
+
+% Build t2 relaxation map into Gmri object
+if ~isempty(args.t2) && args.niter >= 0
+    fprintf('\nCreating R2 Gmri zmap for reconstruction model...');
+    R2 = 1/(args.t2*1e3); % convert to 1/usec
+    Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2*ones(dim),1);
     fprintf(' Done.');
+end
 
-    % Build t2 relaxation map into Gmri object
-    if ~isempty(args.t2) && args.niter >= 0
-        fprintf('\nCreating R2 Gmri zmap for reconstruction model...');
-        R2 = 1/(args.t2*1e3); % convert to 1/usec
-        Gm = feval(Gm.arg.new_zmap,Gm,ti(:),R2*ones(dim),1);
-        fprintf(' Done.');
-    end
-    
-    % Correct smap for single-coil data
-    if isempty(args.smap) && info.ncoils == 1
-        args.smap = ones(dim);
-    end
-    
-    % Make quadratic regularizer for PCG recon
-    R = Reg1(ones(dim), 'beta', 2^-12 * numel(ks(:,1,:,:)));
-    C = block_fatrix({R.C}, 'type', 'col');
+% Correct smap for single-coil data
+if isempty(args.smap) && ncoils == 1
+    args.smap = ones(dim);
+end
 
-    % Use only nufft for fourier encoding if niter < 0
-    if args.niter < 0
-        fprintf('\nSetting up NUFFT reconstruction (since niter < 0) for')
-        Gm = Gm.Gnufft;
-    elseif args.niter == 0
-        fprintf('\nSetting up CP reconstruction model for')
-    else
-        fprintf('\nSetting up %d-iteration PCG reconstruction model for',args.niter)
-    end
-    
-    if ~isempty(args.smap) || info.ncoils == 1
-        fprintf(' image timeseries (with sensitivity encoding)...');
+% Make quadratic regularizer for PCG recon
+R = Reg1(ones(dim), 'beta', 2^-12 * numel(ks(:,1,:,:)));
+C = block_fatrix({R.C}, 'type', 'col');
 
-        % Correct size of W
-        W = Gdiag(repmat(dcf(:),1,info.ncoils));
-        
-        % Incorporate sensitivity encoding into system matrix
-        Ac = repmat({[]},info.ncoils,1);
-        for coiln = 1:info.ncoils
-            tmp = args.smap(:,:,:,coiln);
-            tmp = Gdiag(tmp);
-            Ac{coiln} = Gm * tmp;
-        end
-        A = block_fatrix(Ac, 'type', 'col');
-        
-        % Reshape data for recon (ndata x ncoils x nframes)
-        data_all = reshape(permute(raw(args.frames,:,:,:,:),[2:5,1]), ...
-            [],info.ncoils,length(args.frames));
-        
-        % Initialize output image (dim x nframes)
-        im = zeros([dim,length(args.frames)]);
-        
-    else
-        fprintf(' coil-wise images for frame 1 (no sensitivity encoding)...');
+% Use only nufft for fourier encoding if niter < 0
+if args.niter < 0
+    fprintf('\nSetting up NUFFT reconstruction (since niter < 0) for')
+    Gm = Gm.Gnufft;
+elseif args.niter == 0
+    fprintf('\nSetting up CP reconstruction model for')
+else
+    fprintf('\nSetting up %d-iteration PCG reconstruction model for',args.niter)
+end
 
-        % System matrix is only fourier encoding
-        A = Gm;
-        
-        % Reshape data for recon (ndata x ncoils x nframes)
-        data_all = reshape(raw(1,:,:,:,:),[],1,info.ncoils);
-        
-        % Initialize output image (dim x ncoils)
-        im = zeros([dim,info.ncoils]);
-        
-        
+if ~isempty(args.smap) || ncoils == 1
+    fprintf(' image timeseries (with sensitivity encoding)...');
+
+    % Correct size of W (weights for density compensation)
+    W = Gdiag(repmat(dcf(:),1,ncoils));
+
+    % Incorporate sensitivity encoding into system matrix
+    Ac = repmat({[]},ncoils,1);
+    for coiln = 1:ncoils
+        tmp = args.smap(:,:,:,coiln);
+        tmp = Gdiag(tmp);
+        Ac{coiln} = Gm * tmp;
     end
-    fprintf(' Done.')
-    
-%% Reconstruct images
-    
+    A = block_fatrix(Ac, 'type', 'col');
+
+    % Reshape data for recon (ndata x ncoils x nframes)
+    tmp = permute(raw(:,:,:,:),[2:5,1]);
+    data_all = reshape(tmp,[],ncoils,nframes);
+    clear tmp;
+        
+
+    % Initialize output image (dim x nframes)
+    im = zeros([dim,nframes]);
+
+else
+    fprintf(' coil-wise images for frame 1 (no sensitivity encoding)...');
+
+    % System matrix is only fourier encoding
+    A = Gm;
+
+    % Reshape data for recon (ndata x ncoils x nframes)
+    data_all = reshape(raw(1,:,:,:,:),[],1,ncoils);
+
+    % Initialize output image (dim x ncoils)
+    im = zeros([dim,ncoils]);
+
+
+end
+fprintf(' Done.')
+
+%% Reconstruct images (OLD CODE)
+%{
     fprintf('\nReconstructing...');
 
     % Loop through image series (frames or coils index)
     fprintf('\nExecuting the Reconstruction. %d Iteration(s)...', niter);
-    parfor n = 1:size(im,4)
+    for n = 1:size(im,4)
         
         % Get indexed data
         data = data_all(:,:,n);
@@ -449,45 +546,115 @@ function im = recon3dflex(varargin)
         
     end
     fprintf(' Done.');
-    
-%% Save and return output data
+%}
 
-    if nargout < 1
-        if ~isempty(args.smap)
-            % Save timeseries
-            writenii([info.wd,'/timeseries_mag',args.outputtag], abs(im), ...
-                'fov', fov, 'tr', info.tr*info.nleaves, 'doscl', args.scaleoutput);
-            writenii([info.wd,'/timeseries_ang',args.outputtag], angle(im), ...
-                'fov', fov, 'tr', info.tr*info.nleaves, 'doscl', args.scaleoutput);
-            fprintf('\nTimeseries saved to timeseries_mag%s.nii',args.outputtag);
-        else
-            % Save coil images
-            writenii([info.wd,'/coils_mag',args.outputtag], abs(im), ...
-                'fov', fov, 'doScl', args.scaleoutput);
-            writenii([info.wd,'/coils_ang',args.outputtag], angle(im), ...
-                'fov', fov, 'doScl', args.scaleoutput);
-            fprintf('\nCoil images (frame 1) saved to coil_*%s.nii',args.outputtag);
-        end
-        
-        % Save point spread function
-        writenii([info.wd,'/psf',args.outputtag], abs(psf), ...
-            'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
-        fprintf('\nPoint spread function saved to psf%s.nii',args.outputtag);
-        
-        % Destroy im variable so it will not be returned
-        clear im
-    else
-        % Notify user that images will not be saved
-        fprintf('\nImages will not be saved to file since output is returned');
-    end
-    
-    % Save and print elapsed time
-    t = toc(t);
-    fprintf('\nRecon complete. Total elapsed time: %.2fs\n',t);
-    
+
+%% Reconstruct images (NEW CODE)
+
+% Initialize output image (dim x nframes)
+im = zeros([dim,nframes]);
+if ncoils==1
+    args.smap=[];
 end
 
-%% readpfile function definition
+if isempty(args.smap) % Coil-wise recon with RMS coil combo
+
+    for framen = 1:length(args.frames)
+
+        if ncoils==1  % single coil- keep the phase info
+            data = reshape(raw(args.frames(framen),:,:,:,1),[],1);
+            im(:,:,:,framen) = reshape(Gm' * (W*data(:)),dim);
+
+        else  % multi-coil commbine with RMS
+            data = zeros(dim);
+
+            parfor coiln = 1:ncoils
+                % Recon data
+                data = reshape(raw(args.frames(framen),:,:,:,coiln),[],1);
+                imc(:,:,:,coiln,framen) = reshape(Gm' * (W*data(:)),dim);
+
+                % rescale to conserve energy
+                tmp = raw(args.frames(framen), :,:,:, coiln);
+                nrg_in = norm(tmp(:));
+                tmp = imc(:,:,:,coiln,framen);
+                nrg_out = norm(tmp(:));
+                SCL = nrg_in / nrg_out;
+
+                imc(:,:,:,coiln, framen) = imc(:,:,:,coiln,framen) * SCL;
+
+            end
+            im(:,:,:,framen) = sqrt(mean(imc(:,:,:,:,framen).^2,4));
+
+        end
+
+    end
+
+else % CP-SENSE recon
+
+    % Incorporate sensitivity encoding into system matrix
+    Ac = repmat({[]},ncoils,1);
+    for coiln = 1:ncoils
+        tmp = args.smap(:,:,:,coiln);
+        tmp = Gdiag(tmp(true(dim.*ones(1,3))),'mask',true(dim.*ones(1,3)));
+        Ac{coiln} = Gm * tmp;
+    end
+    A = block_fatrix(Ac, 'type', 'col');
+
+    % Reshape density weighting matrix
+    W = Gdiag(repmat(dcf(:)./Gm.arg.basis.transform,1,ncoils));
+
+    % Recon data
+    parfor framen = args.frames
+        data = reshape(raw(args.frames(framen),:,:,:,:),[],1);
+        im(:,:,:,framen) = embed(A' * reshape(W * data, [], 1), ...
+            true(dim.*ones(1,3)));
+    end
+
+
+end
+
+
+
+%% Save and return output data
+
+if nargout < 1
+    % Save timeseries
+
+    if (ncoils>1) && isempty(args.smap)
+        % Save coil images
+        writenii([workDir,'/coils_mag',args.outputtag], abs(imc), ...
+            'fov', fov, 'doScl', args.scaleoutput);
+        writenii([workDir,'/coils_ang',args.outputtag], angle(imc), ...
+            'fov', fov, 'doScl', args.scaleoutput);
+        fprintf('\nCoil images (frame 1) saved to coil_*%s.nii',args.outputtag);
+    end
+
+    writenii([workDir,'/timeseries_mag',args.outputtag], abs(im), ...
+        'fov', fov, 'tr', tr*ntrains, 'doscl', args.scaleoutput);
+    writenii([workDir,'/timeseries_ang',args.outputtag], angle(im), ...
+        'fov', fov, 'tr', tr*ntrains, 'doscl', args.scaleoutput);
+    fprintf('\nTimeseries saved to timeseries_mag%s.nii',args.outputtag);
+
+    % Save point spread function
+    writenii([workDir,'/psf',args.outputtag], abs(psf), ...
+        'fov', fov, 'tr', 1, 'doscl', args.scaleoutput);
+    fprintf('\nPoint spread function saved to psf%s.nii',args.outputtag);
+
+    % Destroy im variable so it will not be returned
+    clear im
+else
+    % Notify user that images will not be saved
+    fprintf('\nImages will not be saved to file since output is returned');
+end
+
+% Save and print elapsed time
+t = toc(t);
+fprintf('\nRecon complete. Total elapsed time: %.2fs\n',t);
+
+end
+
+%% readpfile function definition (old - superceded)
+%{
 function [raw,info] = formatpfile(searchstr)
 
     [raw,h] = readpfile(searchstr);
@@ -518,44 +685,59 @@ function [raw,info] = formatpfile(searchstr)
     raw = permute(raw, [3,1,2,4,5]);
 
 end
+%}
 
 %% phasedetrend function definition
 function raw_corr = phasedetrend(raw,navpts,pdorder)
+% In the ideal case the phase should be flat and constant from
+% echo to echo in the navigator.
+% the idea is to fit the signal in the navigator data segment to a
+% polynomial trend. We assume that this trend is present in the whole echo and
+% that it is undesirable, so we subtract this fitted polynomial from the
+% echo
 
-    % Get dimensions
-    nframes = size(raw,1);
-    ndat = size(raw,2);
-    nleaves = size(raw,3);
-    nslices = size(raw,4);
-    ncoils = size(raw,5);
-    
-    % Define design matrix for lsq poly fit
-    A = (navpts(:) - round(ndat/2)).^(pdorder:-1:0);
-    
-    % Intitialize fits array
-    fits = zeros(nframes,ndat,nleaves,nslices,ncoils);
-    
-    % Loop through all echos
-    for framen = 1:nframes
-        for leafn = 1:nleaves
-            for slicen = 1:nslices
-                for coiln = 1:ncoils
-                    % Fit polynomial to center phase of indexed echo
-                    echo = raw(framen,:,leafn,slicen,coiln);
-                    y = angle(echo(navpts));
-                    betas = pinv(A)*y(:);
-                    fits(framen,:,leafn,slicen,coiln) = ...
-                        ((1:ndat) - round(ndat/2))'.^(pdorder:-1:0) * betas;
-                end
+% Get dimensions
+nframes = size(raw,1);
+ndat = size(raw,2);
+nechos = size(raw,3);
+ntrains = size(raw,4);
+ncoils = size(raw,5);
+
+% The linear model for the noise is asum of polynomials:
+% y = x0 + x + x^2 + ....x^pdorder
+A = (navpts(:) - round(ndat/2)).^(pdorder:-1:0);
+
+% Intitialize fits array
+fits = zeros(nframes,ndat,nechos,ntrains,ncoils);
+
+% Loop through all echos
+for framen = 1:nframes
+    for echon = 1:nechos
+        for trainn = 1:ntrains
+            for coiln = 1:ncoils
+
+                % Fit polynomial to phase of indexed echo using
+                % simple linear least squares.  The fit is only in the
+                % center region : the navigator points.
+                echo = raw(framen,:,echon,trainn,coiln);
+                y = angle(echo(navpts));
+                betas = pinv(A)*y(:);
+
+                % now remove the fitted polynomial from the WHOLE echo,
+                % noting that the center of the echo is the same data
+                % as the center of the navigators
+                fits(framen,:,echon,trainn,coiln) = ...
+                    ((1:ndat) - round(ndat/2))'.^(pdorder:-1:0) * betas;
             end
         end
     end
-    
-    % Correct echo by subtracting out fits from phase
-    raw_corr = raw.*exp(-1i*fits);
+end
+
+% Correct echo by subtracting out fits from phase
+raw_corr = raw.*exp(-1i*fits);
 
 end
-%%
+%% smoothOutliers  function definition
 function [out Nspikes]= smoothOutliers(raw, threshold)
 % function [out Nspikes_found] = smoothOutliers(raw, threshold);
 %
@@ -607,42 +789,42 @@ end
 %% t2comp function definition
 function t2 = fitt2(raw,navpts,te,dt)
 
-    % Get dimensions
-    ndat = size(raw,2);
-    ndat_all = round(te/dt);
-    nleaves = size(raw,3);
-    nslices = size(raw,4);
-    ncoils = size(raw,5);
-    
-    % Define design matrix for lsq poly fit
-    x = round((ndat_all - ndat)/2) + (navpts + ndat_all * (0:nslices-1));
-    A = x(:).^[1 0];
-    
-    % Initialize R2
-    t2 = zeros(nleaves,ncoils);
-    
-    % Loop through all echos
-    for leafn = 1:nleaves
-        for coiln = 1:ncoils
+% Get dimensions
+ndat = size(raw,2);
+ndat_all = round(te/dt);
+nechos = size(raw,3);
+ntrains = size(raw,4);
+ncoils = size(raw,5);
 
-            % Get current echo train with full echo time
-            echo = padarray(raw(1,:,leafn,:,coiln), ...
-                [0 floor((ndat_all - ndat)/2) 0 0 0],'pre');
-            echo = padarray(echo, ...
-                [0 ceil((ndat_all - ndat)/2) 0 0 0],'post');
-            echo = abs(reshape(echo,ndat_all*nslices,1));
+% Define design matrix for lsq poly fit
+x = round((ndat_all - ndat)/2) + (navpts + ndat_all * (0:ntrains-1));
+A = x(:).^[1 0];
 
-            % Fit the decay using least squares
-            y = echo(x(:));
-            b = pinv(A) * log(y);
+% Initialize R2
+t2 = zeros(nechos,ncoils);
 
-            % Save R2 values
-            t2(leafn,coiln) = 1/abs(b(1));
+% Loop through all echos
+for echon = 1:nechos
+    for coiln = 1:ncoils
 
-        end
+        % Get current echo train with full echo time
+        echo = padarray(raw(1,:,echon,:,coiln), ...
+            [0 floor((ndat_all - ndat)/2) 0 0 0],'pre');
+        echo = padarray(echo, ...
+            [0 ceil((ndat_all - ndat)/2) 0 0 0],'post');
+        echo = abs(reshape(echo,ndat_all*ntrains,1));
+
+        % Fit the decay using least squares
+        y = echo(x(:));
+        b = pinv(A) * log(y);
+
+        % Save R2 values
+        t2(echon,coiln) = 1/abs(b(1));
+
     end
-    
-    % Get average R2 value
-    t2 = mean(t2(~isinf(t2(:))));
+end
+
+% Get average R2 value
+t2 = mean(t2(~isinf(t2(:))));
 
 end

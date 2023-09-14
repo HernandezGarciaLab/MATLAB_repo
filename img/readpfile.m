@@ -8,16 +8,19 @@ function [data,hdr] = readpfile(searchstr)
     % Find Pfile based on search string
     dirp = dir(searchstr);
     if size(dirp,1) > 1
-        fprintf('\nMultiple Pfiles found for search string %s:',searchstr);
-        for i = 1:size(dirp,1)
-            fprintf('\n\t%s',dirp(i).name);
+        data = cell(size(dirp,1),1);
+        h = cell(size(dirp,1),1);
+        for n = 1:size(dirp,1) % Recurse through all pfiles
+             pfile = [dirp(1).folder '/' dirp(1).name];
+             [data_i,h_i] = readpfile(pfile);
+             data{n} = data_i;
+             h{n} = h_i;
         end
-        fprintf('\n--> Only continuing with first Pfile...');
+        return;
     elseif size(dirp,1) < 1
-        error('No Pfiles found for search string %s:',searchstr);
+        error('No Pfiles found for search string: %s',searchstr);
     end
     pfile = [dirp(1).folder '/' dirp(1).name];
-    fprintf('\nReading Pfile: %s', dirp(1).name);
 
     % Open pfile
     fid = fopen(pfile,'r','l');
@@ -65,14 +68,26 @@ function [data,hdr] = readpfile(searchstr)
        hdr.grad = read_grad_header(fid,rdbm_rev);
     end
     
-    % Data
-    fseek(fid,hdr.rdb.off_data,'bof');
-    data = fread(fid,inf,'short');
-    data = data(1:2:end) + 1i * data(2:2:end);
+    % Get data sizes from rbd header
+    ndat = hdr.rdb.frame_size;
+    nslices = hdr.rdb.nslices;
+    nechoes = hdr.rdb.nechoes;
+    nviews = hdr.rdb.nframes;
+    ncoils = hdr.rdb.dab(2)-hdr.rdb.dab(1)+1;
+    precision = sprintf('int%d=>int%d', ...
+        hdr.rdb.point_size*8, hdr.rdb.point_size*8);
+    te = hdr.image.te;
+    
+    % Read in data
+    fseek(fid, hdr.rdb.off_data, 'bof');
+    data = double(fread(fid, Inf, precision));
+    data = data(1:2:end) + 1i*data(2:2:end);
+    data = reshape(data,ndat,nviews+1,nslices,nechoes,ncoils);
+    data = data(:,2:end,:,:,:); % Cut out the baseline
 
     % Close file
     fclose(fid);
-    fprintf('\n');
+    
 
 end
 
