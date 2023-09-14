@@ -76,6 +76,7 @@ function [data,hdr] = readpfile(searchstr)
     ncoils = hdr.rdb.dab(2)-hdr.rdb.dab(1)+1;
     precision = sprintf('int%d=>int%d', ...
         hdr.rdb.point_size*8, hdr.rdb.point_size*8);
+    te = hdr.image.te;
     
     % Read in data
     fseek(fid, hdr.rdb.off_data, 'bof');
