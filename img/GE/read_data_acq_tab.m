@@ -630,7 +630,7 @@ if rdbm_rev == 28.002
 end
 
 % RDBM revision 28.003
-if rdbm_rev == 28.003 
+if rdbm_rev >= 28.003 
   a.pass_number = fread(my_file, 1, 'int16');
   a.slice_in_pass = fread(my_file, 1, 'int16');
   for id = 1 : 3

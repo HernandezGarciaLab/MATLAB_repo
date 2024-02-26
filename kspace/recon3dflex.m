@@ -137,16 +137,16 @@ pfile = pfile(1).name;
 
 % Load in kspace trajectory & view transformation matrices
 ktraj = dir([pdir,'/ktraj*.txt']);
-ktraj = load(ktraj(1).name);
+ktraj = load([ktraj(1).folder,'/',ktraj(1).name]);
 kviews = dir([pdir,'/kviews*.txt']);
-kviews = load(kviews(1).name);
+kviews = load([kviews(1).folder,'/',kviews(1).name]);
 fprintf('successfully loaded trajectory files\n');
 
 % Reshape transformation matrices as an array of 3x3 matrices
 T = permute(reshape(kviews(:,end-8:end)',3,3,[]),[2,1,3]);
 
 % Load in raw data
-[raw,phdr] = readpfile(pfile);
+[raw,phdr] = readpfile([pdir,'/',pfile]);
 fprintf('successfully loaded pfile data\n');
 ndat = phdr.rdb.frame_size;
 nechoes = phdr.rdb.user2;
@@ -328,7 +328,7 @@ end
 if nargout < 1
     writenii([pdir,'/im_mag'], abs(im), ...
         'fov', fov*ones(1,3), 'tr', tr);
-    writenii([pdir,'im_ang'], angle(im), ...
+    writenii([pdir,'/im_ang'], angle(im), ...
         'fov', fov*ones(1,3), 'tr', tr);
     fprintf('timeseries saved to file: im*.nii\n');
     clear im imc

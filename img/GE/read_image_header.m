@@ -9657,7 +9657,7 @@ if rdbm_rev == 28.002
 end
 
 % RDBM revision 28.003
-if rdbm_rev == 28.003 
+if rdbm_rev >= 28.003 
   a.autoSubParam.seriesUidToSubtract = fread(my_file, 32, 'char')';
   a.autoSubParam.imageNoToSubtract = fread(my_file, 1, 'int32');
   a.autoSubParam.destSeriesNo = fread(my_file, 1, 'int32');

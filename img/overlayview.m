@@ -256,7 +256,7 @@ classdef overlayview
                     c.Label.String = imn.name;
                 end
             end
-            clim([0 n]);
+            caxis([0 n]);
 
         end
 

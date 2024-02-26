@@ -30,13 +30,13 @@ function mat2txt(fname,A)
     % Write matrix as float table
     for row = 1:size(A,1)
         for col = 1:size(A,2)
-            if iscomplex(A) && sign(imag(A(row,col))) >= 0
-                fprintf(fID,'%f%+fi\t',real(A(row,col)),imag(A(row,col)));
-            elseif sign(imag(A(row,col))) < 0
-                fprintf(fID,'%f%-fi\t',real(A(row,col)),-imag(A(row,col)));
-            else
-                fprintf(fID,'%f \t',A(row,col));
-            end
+%             if iscomplex(A) && sign(imag(A(row,col))) >= 0
+%                 fprintf(fID,'%f%+fi\t',real(A(row,col)),imag(A(row,col)));
+%             elseif sign(imag(A(row,col))) < 0
+%                 fprintf(fID,'%f%-fi\t',real(A(row,col)),-imag(A(row,col)));
+%             else
+                fprintf(fID,'%d \t',A(row,col));
+%             end
         end
         fprintf(fID,'\n');
     end

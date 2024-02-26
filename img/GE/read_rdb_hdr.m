@@ -9,6 +9,8 @@ function a = read_rdb_hdr( my_file,rdbm_rev )
 
 % Copyright (c) 2012 by General Electric Company. All rights reserved.
 
+fprintf("rdbm_rev = %d\n", rdbm_rev);
+
 if rdbm_rev < 9
     a.rdbm_rev          = fread( my_file, 1, 'float32');
     a.run_int           = fread( my_file, 1, 'int32');
@@ -13555,7 +13557,7 @@ if rdbm_rev == 28.002
 end
 
 % RDBM revision 28.003
-if rdbm_rev == 28.003 
+if rdbm_rev >= 28.003
   a.rdbm_rev = fread(my_file, 1, 'float32');
   a.off_data = fread(my_file, 1, 'int32');
   a.off_per_pass = fread(my_file, 1, 'int32');

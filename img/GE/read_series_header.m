@@ -5982,7 +5982,7 @@ if rdbm_rev == 28.002
 end
 
 % RDBM revision 28.003
-if rdbm_rev == 28.003 
+if rdbm_rev >= 28.003 
   for id = 1 : 11
     a.double_padding(id) = fread(my_file, 1, 'float64');
   end

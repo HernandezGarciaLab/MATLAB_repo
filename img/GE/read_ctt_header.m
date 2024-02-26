@@ -254,7 +254,7 @@ if rdbm_rev == 28.002
 end
 
 % RDBM revision 28.003
-if rdbm_rev == 28.003 
+if rdbm_rev >= 28.003 
   for id = 1 : 4
     a.cttentry(id).logicalCoilName = fread(my_file, 128, 'char')';
     a.cttentry(id).clinicalCoilName = fread(my_file, 32, 'char')';
