@@ -75,16 +75,21 @@ nframes = size(kdata,2);
 ndim = length(dim);
 
 % Compress coils
-fprintf('compressing coils...\n')
 if size(kdata,3) > 1 && arg.compfrac < 1
+    fprintf('compressing coils...\n')
     kdata = ir_mri_coil_compress(kdata,'ncoil',ncoils);
 end
 
 if (ncoils > 1 && isempty(arg.smap)) || (size(arg.smap,ndim+1) ~= ncoils )
     warning('no valid sense map passed, creating new one...');
+    
+    % Create region of support window
+    kwin = vecnorm(klocs,2,2) <= 0.2*max(vecnorm(klocs,2,2));
+    
     % Recurse with coil-wise images as frames
     kdatac = squeeze(kdata(:,1,:));
-    imc = recon_cgsense(klocs,kdatac,dim,fov,varargin{:});
+    imc = recon_cgsense(klocs(kwin,:),kdatac(kwin,:),dim,fov,varargin{:}, ...
+        'compfrac',1);
 
     if ndims(imc) < 4 % if 2D
         imc = permute(imc, [1,2,4,3]);
@@ -133,7 +138,7 @@ for i = 1:nframes
     % Recon using preconditioned conjugate gradient (iterative)
     if arg.niter > 0
         im_pcg = qpwls_pcg1(im_cp(true(dim)), Gm, W, kdataf(:), C, ...
-            'niter', niter,'isave', 1:niter);
+            'niter', arg.niter, 'isave', 1:arg.niter);
         im(:,i) = im_pcg(:,1);
     else % ...or save image with CP recon
         im(:,i) = im_cp;
