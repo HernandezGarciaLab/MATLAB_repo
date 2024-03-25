@@ -80,11 +80,11 @@ if size(kdata,3) > 1 && arg.compfrac < 1
     kdata = ir_mri_coil_compress(kdata,'ncoil',ncoils);
 end
 
-if (ncoils > 1 && isempty(arg.smap)) || (size(arg.smap,ndim+1) ~= ncoils )
+if ncoils > 1 && (isempty(arg.smap) || (size(arg.smap,ndim+1) ~= ncoils))
     warning('no valid sense map passed, creating new one...');
     
     % Create region of support window
-    kwin = vecnorm(klocs,2,2) <= 0.2*max(vecnorm(klocs,2,2));
+    kwin = vecnorm(klocs,2,2) <= 1*max(vecnorm(klocs,2,2));
     
     % Recurse with coil-wise images as frames
     kdatac = squeeze(kdata(:,1,:));
